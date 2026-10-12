@@ -976,7 +976,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^5.0.3
-        version: 5.0.3(@opentelemetry/api@1.9.0)(@types/node@25.9.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.1(@types/node@25.9.2)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))
+        version: 5.0.3(@opentelemetry/api@1.9.0)(@types/node@25.9.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.1(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))
 
   packages/chat:
     dependencies:
@@ -1149,6 +1149,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.133.0
         version: 0.133.0(zod@4.6.5)
+      '@chat-adapter/tests':
+        specifier: workspace:*
+        version: link:../tests
       '@cursor/sdk':
         specifier: ^1.0.37
         version: 1.0.37
@@ -1163,7 +1166,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^5.0.3
-        version: 5.0.3(@opentelemetry/api@1.9.0)(@types/node@25.9.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.1(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))
+        version: 5.0.3(@opentelemetry/api@1.9.0)(@types/node@25.9.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.1(@types/node@25.9.2)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))
 
   packages/state-ioredis:
     dependencies:
@@ -19260,7 +19263,7 @@ snapshots:
       obug: 2.2.1
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 5.0.3(@opentelemetry/api@1.9.0)(@types/node@25.9.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.1(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))
+      vitest: 5.0.3(@opentelemetry/api@1.9.0)(@types/node@25.9.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.1(@types/node@25.9.2)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))
 
   '@vitest/expect@5.0.3':
     dependencies:

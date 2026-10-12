@@ -77,6 +77,7 @@
   "license": "MIT",
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
+    "@chat-adapter/tests": "workspace:*",
     "@cursor/sdk": "^1.0.37",
     "@types/node": "^25.9.2",
     "tsup": "^8.5.1",

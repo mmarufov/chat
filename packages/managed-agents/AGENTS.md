@@ -16,8 +16,17 @@ src/
   render.ts           Driver events to a Chat SDK stream
   claude/index.ts     Claude Managed Agents driver (@anthropic-ai/sdk)
   cursor/index.ts     Cursor driver (@cursor/sdk)
-  test-utils.ts       Fake thread and helpers for tests
+  test-utils.ts       Fake thread and helpers for unit tests
+  chat.integration.test.ts  Real Chat + ThreadImpl with a mock adapter
+  index.test-d.ts     Type tests for the public API
 ```
+
+## Tests
+
+- `pnpm test` also type-checks every `*.test.ts` and `*.test-d.ts` file (`tsconfig.typecheck.json`). `tsc` alone skips test files.
+- Type provider fixtures against the real SDK types (`BetaManagedAgentsStreamSessionEvents`, `SDKMessage`, `RunResult`). Do not cast fixtures to `any` or `Record<string, unknown>`.
+- Mock only network-facing provider calls. Import error classes and types from the real SDK.
+- Cover chat-side behavior that depends on Chat SDK internals in `chat.integration.test.ts`, not with the fake thread.
 
 ## Rules
 

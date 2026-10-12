@@ -1,53 +1,97 @@
+import {
+  Agent,
+  AgentNotFoundError,
+  type RunResult,
+  type SDKAgentInfo,
+  type SDKMessage,
+} from "@cursor/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { collect } from "../test-utils";
+import { createCursorDriver } from "./index";
 
-const sdk = vi.hoisted(() => {
-  class AgentNotFoundError extends Error {}
+// Only the network-facing Agent methods are mocked. Error classes and types
+// come from the real SDK, so fixtures fail type-checking if the SDK changes.
+vi.mock("@cursor/sdk", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@cursor/sdk")>();
   return {
-    Agent: {
-      create: vi.fn(),
-      get: vi.fn(),
-      resume: vi.fn(),
-    },
-    AgentNotFoundError,
+    ...actual,
+    Agent: { create: vi.fn(), get: vi.fn(), resume: vi.fn() },
   };
 });
 
-vi.mock("@cursor/sdk", () => sdk);
+const create = vi.mocked(Agent.create);
+const get = vi.mocked(Agent.get);
+const resume = vi.mocked(Agent.resume);
 
-const { createCursorDriver } = await import("./index");
+const IDS = { agent_id: "bc-123", run_id: "run_1" } as const;
 
-type Message = Record<string, unknown> & { type: string };
+const msg = {
+  system: (): SDKMessage => ({ ...IDS, type: "system" }),
+  text: (value: string): SDKMessage => ({
+    ...IDS,
+    message: { content: [{ text: value, type: "text" }], role: "assistant" },
+    type: "assistant",
+  }),
+  tool: (
+    callId: string,
+    name: string,
+    status: "running" | "completed" | "error"
+  ): SDKMessage => ({
+    ...IDS,
+    call_id: callId,
+    name,
+    status,
+    type: "tool_call",
+  }),
+  request: (requestId: string): SDKMessage => ({
+    ...IDS,
+    request_id: requestId,
+    type: "request",
+  }),
+};
 
 function fakeRun(
-  messages: Message[],
-  result: Record<string, unknown> = { status: "finished" }
+  messages: SDKMessage[],
+  result: Omit<RunResult, "id"> = { status: "finished" }
 ) {
   return {
     cancel: vi.fn(() => Promise.resolve()),
     id: "run_1",
-    async *stream() {
+    async *stream(): AsyncGenerator<SDKMessage> {
       for (const message of messages) {
         yield message;
       }
     },
-    wait: vi.fn(() => Promise.resolve(result)),
+    wait: vi.fn(
+      (): Promise<RunResult> => Promise.resolve({ id: "run_1", ...result })
+    ),
   };
 }
 
-function fakeAgent(run: ReturnType<typeof fakeRun>, agentId = "bc-123") {
-  return { agentId, close: vi.fn(), send: vi.fn(() => Promise.resolve(run)) };
+// The driver uses agentId, send(), and close() from SDKAgent.
+function fakeAgent(run: ReturnType<typeof fakeRun>) {
+  const agent = {
+    agentId: "bc-123",
+    close: vi.fn(),
+    send: vi.fn(() => Promise.resolve(run)),
+  };
+  return agent as typeof agent & Awaited<ReturnType<typeof Agent.create>>;
+}
+
+function info(overrides: { archived?: boolean } = {}): SDKAgentInfo {
+  return {
+    agentId: "bc-123",
+    lastModified: 0,
+    name: "agent",
+    summary: "",
+    ...overrides,
+  };
 }
 
 const options = {
   agent: { apiKey: "key", cloud: { repos: [] } },
   send: { mode: "agent" as const },
 };
-
-const text = (value: string): Message => ({
-  message: { content: [{ text: value, type: "text" }], role: "assistant" },
-  type: "assistant",
-});
 
 function turn(signal = new AbortController().signal) {
   return collect(
@@ -65,9 +109,8 @@ describe("createCursorDriver", () => {
   });
 
   it("creates an agent and reuses its handle for the first run", async () => {
-    const run = fakeRun([text("Hello")]);
-    const agent = fakeAgent(run);
-    sdk.Agent.create.mockResolvedValue(agent);
+    const agent = fakeAgent(fakeRun([msg.text("Hello")]));
+    create.mockResolvedValue(agent);
     const driver = createCursorDriver(options);
 
     const sessionId = await driver.createSession({
@@ -83,22 +126,25 @@ describe("createCursorDriver", () => {
     );
 
     expect(sessionId).toBe("bc-123");
-    expect(sdk.Agent.create).toHaveBeenCalledWith(options.agent);
-    expect(sdk.Agent.resume).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledWith(options.agent);
+    expect(resume).not.toHaveBeenCalled();
     expect(agent.send).toHaveBeenCalledWith("Hi", options.send);
     expect(agent.close).toHaveBeenCalled();
   });
 
   it("resumes existing agents and streams text and tool calls", async () => {
-    const run = fakeRun([
-      { model: {}, type: "system" },
-      text("Looking"),
-      text(" now."),
-      { call_id: "c1", name: "grep", status: "running", type: "tool_call" },
-      { call_id: "c1", name: "grep", status: "completed", type: "tool_call" },
-      text("Found it."),
-    ]);
-    sdk.Agent.resume.mockResolvedValue(fakeAgent(run));
+    resume.mockResolvedValue(
+      fakeAgent(
+        fakeRun([
+          msg.system(),
+          msg.text("Looking"),
+          msg.text(" now."),
+          msg.tool("c1", "grep", "running"),
+          msg.tool("c1", "grep", "completed"),
+          msg.text("Found it."),
+        ])
+      )
+    );
 
     expect(await turn()).toEqual([
       { messageId: "run_1:0", text: "Looking", type: "text-delta" },
@@ -108,11 +154,11 @@ describe("createCursorDriver", () => {
       { messageId: "run_1:1", text: "Found it.", type: "text-delta" },
       { reason: "complete", type: "turn-end" },
     ]);
-    expect(sdk.Agent.resume).toHaveBeenCalledWith("bc-123", options.agent);
+    expect(resume).toHaveBeenCalledWith("bc-123", options.agent);
   });
 
   it("falls back to the run result when nothing streamed", async () => {
-    sdk.Agent.resume.mockResolvedValue(
+    resume.mockResolvedValue(
       fakeAgent(fakeRun([], { result: "Summary", status: "finished" }))
     );
 
@@ -123,7 +169,7 @@ describe("createCursorDriver", () => {
   });
 
   it("reports failed and cancelled runs", async () => {
-    sdk.Agent.resume.mockResolvedValue(
+    resume.mockResolvedValue(
       fakeAgent(
         fakeRun([], {
           error: { code: "rate_limited", message: "x" },
@@ -135,15 +181,13 @@ describe("createCursorDriver", () => {
       { detail: "rate_limited", reason: "stopped", type: "turn-end" },
     ]);
 
-    sdk.Agent.resume.mockResolvedValue(
-      fakeAgent(fakeRun([], { status: "cancelled" }))
-    );
+    resume.mockResolvedValue(fakeAgent(fakeRun([], { status: "cancelled" })));
     expect(await turn()).toEqual([{ reason: "cancelled", type: "turn-end" }]);
   });
 
   it("cancels runs that ask for approval", async () => {
-    const run = fakeRun([{ request_id: "req_1", type: "request" }]);
-    sdk.Agent.resume.mockResolvedValue(fakeAgent(run));
+    const run = fakeRun([msg.request("req_1")]);
+    resume.mockResolvedValue(fakeAgent(run));
 
     expect(await turn()).toEqual([
       { requestId: "req_1", tools: [], type: "approval-request" },
@@ -152,15 +196,15 @@ describe("createCursorDriver", () => {
   });
 
   it("ends the session when the agent no longer exists", async () => {
-    sdk.Agent.resume.mockRejectedValue(new sdk.AgentNotFoundError("gone"));
+    resume.mockRejectedValue(new AgentNotFoundError("gone"));
 
     expect(await turn()).toEqual([{ type: "session-ended" }]);
   });
 
   it("cancels the run when the turn is aborted", async () => {
     const abort = new AbortController();
-    const run = fakeRun([text("one"), text("two")]);
-    sdk.Agent.resume.mockResolvedValue(fakeAgent(run));
+    const run = fakeRun([msg.text("one"), msg.text("two")]);
+    resume.mockResolvedValue(fakeAgent(run));
 
     const events = createCursorDriver(options).runTurn({
       sessionId: "bc-123",
@@ -179,17 +223,17 @@ describe("createCursorDriver", () => {
     it("checks cloud agents and rejects archived or missing ones", async () => {
       const driver = createCursorDriver(options);
 
-      sdk.Agent.get.mockResolvedValue({ agentId: "bc-123" });
+      get.mockResolvedValue(info());
       await expect(driver.resumeSession("bc-123")).resolves.toBe(true);
-      expect(sdk.Agent.get).toHaveBeenCalledWith("bc-123", { apiKey: "key" });
+      expect(get).toHaveBeenCalledWith("bc-123", { apiKey: "key" });
 
-      sdk.Agent.get.mockResolvedValue({ agentId: "bc-123", archived: true });
+      get.mockResolvedValue(info({ archived: true }));
       await expect(driver.resumeSession("bc-123")).resolves.toBe(false);
 
-      sdk.Agent.get.mockRejectedValue(new sdk.AgentNotFoundError("gone"));
+      get.mockRejectedValue(new AgentNotFoundError("gone"));
       await expect(driver.resumeSession("bc-123")).resolves.toBe(false);
 
-      sdk.Agent.get.mockRejectedValue(new Error("network"));
+      get.mockRejectedValue(new Error("network"));
       await expect(driver.resumeSession("bc-123")).rejects.toThrow("network");
     });
 
@@ -198,7 +242,7 @@ describe("createCursorDriver", () => {
 
       await expect(driver.resumeSession("agent-123")).resolves.toBe(true);
       await expect(driver.resumeSession("../x")).resolves.toBe(false);
-      expect(sdk.Agent.get).not.toHaveBeenCalled();
+      expect(get).not.toHaveBeenCalled();
     });
   });
 });

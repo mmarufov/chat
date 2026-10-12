@@ -1,26 +1,154 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type {
+  BetaManagedAgentsAgentMessageEvent,
+  BetaManagedAgentsSendSessionEvents,
+  BetaManagedAgentsSessionStatusIdleEvent,
+  BetaManagedAgentsStreamSessionEvents,
+  BetaManagedAgentsUserMessageEvent,
+  BetaManagedAgentsUserToolConfirmationEvent,
+  EventSendParams,
+} from "@anthropic-ai/sdk/resources/beta/sessions/events";
+import type {
+  BetaManagedAgentsSession,
+  SessionCreateParams,
+} from "@anthropic-ai/sdk/resources/beta/sessions/sessions";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { collect } from "../test-utils";
 import type { ManagedAgentEvent } from "../types";
 import { createClaudeDriver } from "./index";
 
-type Event = Record<string, unknown> & { type: string };
+// Fixtures are typed against the SDK so a change in the event shapes fails
+// type-checking instead of silently passing.
+
+type StreamEvent = BetaManagedAgentsStreamSessionEvents;
+type SentEvent = NonNullable<
+  BetaManagedAgentsSendSessionEvents["data"]
+>[number];
+type SessionFixture = Pick<
+  BetaManagedAgentsSession,
+  "archived_at" | "status"
+> & {
+  agent: Pick<BetaManagedAgentsSession["agent"], "id">;
+};
+
+const AT = "2026-01-01T00:00:00Z";
+const text = (value: string) => ({ text: value, type: "text" as const });
+
+const ev = {
+  user: (id = "evt_user"): BetaManagedAgentsUserMessageEvent => ({
+    content: [text("Hi")],
+    id,
+    type: "user.message",
+  }),
+  confirmation: (
+    id: string,
+    toolUseId: string
+  ): BetaManagedAgentsUserToolConfirmationEvent => ({
+    id,
+    result: "allow",
+    tool_use_id: toolUseId,
+    type: "user.tool_confirmation",
+  }),
+  message: (
+    id: string,
+    ...parts: string[]
+  ): BetaManagedAgentsAgentMessageEvent => ({
+    content: parts.map(text),
+    id,
+    processed_at: AT,
+    type: "agent.message",
+  }),
+  start: (id: string): StreamEvent => ({
+    event: { id, type: "agent.message" },
+    type: "event_start",
+  }),
+  delta: (eventId: string, value: string): StreamEvent => ({
+    delta: { content: text(value), index: 0, type: "content_delta" },
+    event_id: eventId,
+    type: "event_delta",
+  }),
+  toolUse: (
+    id: string,
+    name: string,
+    input: Record<string, unknown> = {}
+  ): StreamEvent => ({
+    id,
+    input,
+    name,
+    processed_at: AT,
+    type: "agent.tool_use",
+  }),
+  toolResult: (toolUseId: string, isError = false): StreamEvent => ({
+    id: `${toolUseId}_result`,
+    is_error: isError,
+    processed_at: AT,
+    tool_use_id: toolUseId,
+    type: "agent.tool_result",
+  }),
+  mcpToolUse: (id: string, name: string): StreamEvent => ({
+    id,
+    input: {},
+    mcp_server_name: "linear",
+    name,
+    processed_at: AT,
+    type: "agent.mcp_tool_use",
+  }),
+  mcpToolResult: (mcpToolUseId: string, isError = false): StreamEvent => ({
+    id: `${mcpToolUseId}_result`,
+    is_error: isError,
+    mcp_tool_use_id: mcpToolUseId,
+    processed_at: AT,
+    type: "agent.mcp_tool_result",
+  }),
+  customToolUse: (id: string, name: string): StreamEvent => ({
+    id,
+    input: {},
+    name,
+    processed_at: AT,
+    type: "agent.custom_tool_use",
+  }),
+  idle: (
+    stopReason: BetaManagedAgentsSessionStatusIdleEvent["stop_reason"]
+  ): StreamEvent => ({
+    id: "evt_idle",
+    processed_at: AT,
+    stop_details: null,
+    stop_reason: stopReason,
+    type: "session.status_idle",
+  }),
+  terminated: (): StreamEvent => ({
+    id: "evt_terminated",
+    processed_at: AT,
+    type: "session.status_terminated",
+  }),
+};
+
+function session(overrides: Partial<SessionFixture> = {}): SessionFixture {
+  return {
+    agent: { id: "agent_1" },
+    archived_at: null,
+    status: "idle",
+    ...overrides,
+  };
+}
 
 function fakeClient(options: {
-  events: Event[];
-  retrieve?: () => Promise<unknown>;
-  sent?: Event[];
+  events: StreamEvent[];
+  retrieve?: () => Promise<SessionFixture>;
+  sent?: SentEvent[];
 }) {
   const controller = new AbortController();
-  const send = vi.fn(() =>
-    Promise.resolve({
-      data: options.sent ?? [{ id: "evt_user", type: "user.message" }],
-    })
+  const send = vi.fn(
+    (
+      _sessionId: string,
+      _params: EventSendParams
+    ): Promise<BetaManagedAgentsSendSessionEvents> =>
+      Promise.resolve({ data: options.sent ?? [ev.user()] })
   );
   const stream = vi.fn(() =>
     Promise.resolve({
       controller,
-      async *[Symbol.asyncIterator]() {
+      async *[Symbol.asyncIterator](): AsyncGenerator<StreamEvent> {
         for (const event of options.events) {
           if (controller.signal.aborted) {
             throw new Error("aborted");
@@ -30,19 +158,18 @@ function fakeClient(options: {
       },
     })
   );
-  const create = vi.fn(() => Promise.resolve({ id: "sesn_123" }));
-  const retrieve = vi.fn(options.retrieve ?? (() => Promise.resolve({})));
+  const create = vi.fn((_params: SessionCreateParams) =>
+    Promise.resolve({ id: "sesn_123" })
+  );
+  const retrieve = vi.fn(
+    options.retrieve ?? (() => Promise.resolve(session()))
+  );
+  // Only the methods the driver calls are implemented.
   const client = {
     beta: { sessions: { create, events: { send, stream }, retrieve } },
   } as unknown as Anthropic;
   return { client, controller, create, retrieve, send, stream };
 }
-
-const idle = (stop_reason: Record<string, unknown>): Event => ({
-  id: "evt_idle",
-  stop_reason,
-  type: "session.status_idle",
-});
 
 function driverFor(client: Anthropic) {
   return createClaudeDriver({
@@ -129,10 +256,7 @@ describe("createClaudeDriver", () => {
 
   it("opens the stream before sending the user message", async () => {
     const { client, send, stream } = fakeClient({
-      events: [
-        { id: "evt_user", type: "user.message" },
-        idle({ type: "end_turn" }),
-      ],
+      events: [ev.user(), ev.idle({ type: "end_turn" })],
     });
 
     await turn(client);
@@ -141,49 +265,20 @@ describe("createClaudeDriver", () => {
       send.mock.invocationCallOrder[0] ?? 0
     );
     expect(send).toHaveBeenCalledWith("sesn_123", {
-      events: [
-        { content: [{ text: "Hi", type: "text" }], type: "user.message" },
-      ],
+      events: [{ content: [text("Hi")], type: "user.message" }],
     });
   });
 
   it("skips events from earlier turns and streams previews and messages", async () => {
     const { client } = fakeClient({
       events: [
-        {
-          content: [{ text: "stale", type: "text" }],
-          id: "evt_old",
-          type: "agent.message",
-        },
-        { id: "evt_user", type: "user.message" },
-        { event: { id: "msg_1", type: "agent.message" }, type: "event_start" },
-        {
-          delta: {
-            content: { text: "Hel", type: "text" },
-            index: 0,
-            type: "content_delta",
-          },
-          event_id: "msg_1",
-          type: "event_delta",
-        },
-        {
-          delta: {
-            content: { text: "lo", type: "text" },
-            index: 0,
-            type: "content_delta",
-          },
-          event_id: "msg_1",
-          type: "event_delta",
-        },
-        {
-          content: [
-            { text: "Hello, ", type: "text" },
-            { text: "world", type: "text" },
-          ],
-          id: "msg_1",
-          type: "agent.message",
-        },
-        idle({ type: "end_turn" }),
+        ev.message("evt_old", "stale"),
+        ev.user(),
+        ev.start("msg_1"),
+        ev.delta("msg_1", "Hel"),
+        ev.delta("msg_1", "lo"),
+        ev.message("msg_1", "Hello, ", "world"),
+        ev.idle({ type: "end_turn" }),
       ],
     });
 
@@ -198,33 +293,12 @@ describe("createClaudeDriver", () => {
   it("maps tool calls and results", async () => {
     const { client } = fakeClient({
       events: [
-        { id: "evt_user", type: "user.message" },
-        {
-          id: "tu_1",
-          input: { query: "q" },
-          name: "web_search",
-          type: "agent.tool_use",
-        },
-        {
-          id: "tr_1",
-          is_error: false,
-          tool_use_id: "tu_1",
-          type: "agent.tool_result",
-        },
-        {
-          id: "mcp_1",
-          input: {},
-          mcp_server_name: "linear",
-          name: "list_issues",
-          type: "agent.mcp_tool_use",
-        },
-        {
-          id: "mr_1",
-          is_error: true,
-          mcp_tool_use_id: "mcp_1",
-          type: "agent.mcp_tool_result",
-        },
-        idle({ type: "end_turn" }),
+        ev.user(),
+        ev.toolUse("tu_1", "web_search", { query: "q" }),
+        ev.toolResult("tu_1"),
+        ev.mcpToolUse("mcp_1", "list_issues"),
+        ev.mcpToolResult("mcp_1", true),
+        ev.idle({ type: "end_turn" }),
       ],
     });
 
@@ -245,14 +319,9 @@ describe("createClaudeDriver", () => {
   it("turns requires_action into an approval request", async () => {
     const { client } = fakeClient({
       events: [
-        { id: "evt_user", type: "user.message" },
-        {
-          id: "tu_1",
-          input: { command: "ls" },
-          name: "bash",
-          type: "agent.tool_use",
-        },
-        idle({ event_ids: ["tu_1", "tu_missing"], type: "requires_action" }),
+        ev.user(),
+        ev.toolUse("tu_1", "bash", { command: "ls" }),
+        ev.idle({ event_ids: ["tu_1", "tu_missing"], type: "requires_action" }),
       ],
     });
 
@@ -268,17 +337,29 @@ describe("createClaudeDriver", () => {
     });
   });
 
+  it("reports approvals an earlier turn is still waiting on", async () => {
+    const { client } = fakeClient({
+      events: [
+        ev.idle({ event_ids: ["tu_old"], type: "requires_action" }),
+        ev.user(),
+      ],
+    });
+
+    expect(await turn(client)).toEqual([
+      {
+        requestId: "tu_old",
+        tools: [{ id: "tu_old", name: "Tool" }],
+        type: "approval-request",
+      },
+    ]);
+  });
+
   it("stops instead of asking for approval for custom tools", async () => {
     const { client } = fakeClient({
       events: [
-        { id: "evt_user", type: "user.message" },
-        {
-          id: "ct_1",
-          input: {},
-          name: "lookup",
-          type: "agent.custom_tool_use",
-        },
-        idle({ event_ids: ["ct_1"], type: "requires_action" }),
+        ev.user(),
+        ev.customToolUse("ct_1", "lookup"),
+        ev.idle({ event_ids: ["ct_1"], type: "requires_action" }),
       ],
     });
 
@@ -293,44 +374,32 @@ describe("createClaudeDriver", () => {
 
   it("reports early stops, ended sessions, and dropped streams", async () => {
     const stopped = fakeClient({
-      events: [
-        { id: "evt_user", type: "user.message" },
-        idle({ type: "budget_reached" }),
-      ],
+      events: [ev.user(), ev.idle({ type: "budget_reached" })],
     });
     expect(await turn(stopped.client)).toEqual([
       { detail: "budget_reached", reason: "stopped", type: "turn-end" },
     ]);
 
-    const terminated = fakeClient({
-      events: [{ id: "evt_old", type: "session.status_terminated" }],
-    });
+    const terminated = fakeClient({ events: [ev.terminated()] });
     expect(await turn(terminated.client)).toEqual([{ type: "session-ended" }]);
 
-    const dropped = fakeClient({
-      events: [{ id: "evt_user", type: "user.message" }],
-    });
+    const dropped = fakeClient({ events: [ev.user()] });
     expect(await turn(dropped.client)).toEqual([]);
   });
 
   it("sends tool confirmations for every pending tool", async () => {
     const { client, send } = fakeClient({
       events: [
-        { id: "evt_confirm_2", type: "user.tool_confirmation" },
-        {
-          content: [{ text: "Done", type: "text" }],
-          id: "msg_2",
-          type: "agent.message",
-        },
-        idle({ type: "end_turn" }),
+        ev.confirmation("evt_confirm_2", "tu_2"),
+        ev.message("msg_2", "Done"),
+        ev.idle({ type: "end_turn" }),
       ],
       sent: [
-        { id: "evt_confirm_1", type: "user.tool_confirmation" },
-        { id: "evt_confirm_2", type: "user.tool_confirmation" },
+        ev.confirmation("evt_confirm_1", "tu_1"),
+        ev.confirmation("evt_confirm_2", "tu_2"),
       ],
     });
-    const driver = driverFor(client);
-    const respond = driver.respondToApproval;
+    const respond = driverFor(client).respondToApproval;
     if (!respond) {
       throw new Error("Claude driver must support approvals");
     }
@@ -360,13 +429,9 @@ describe("createClaudeDriver", () => {
     const abort = new AbortController();
     const { client, controller, send } = fakeClient({
       events: [
-        { id: "evt_user", type: "user.message" },
-        {
-          content: [{ text: "Working", type: "text" }],
-          id: "msg_1",
-          type: "agent.message",
-        },
-        idle({ type: "end_turn" }),
+        ev.user(),
+        ev.message("msg_1", "Working"),
+        ev.idle({ type: "end_turn" }),
       ],
     });
     const events = driverFor(client).runTurn({
@@ -391,18 +456,8 @@ describe("createClaudeDriver", () => {
   });
 
   describe("resumeSession", () => {
-    const session = (overrides: Record<string, unknown> = {}) => ({
-      agent: { id: "agent_1" },
-      archived_at: null,
-      status: "idle",
-      ...overrides,
-    });
-
     it("accepts active sessions owned by the agent", async () => {
-      const { client } = fakeClient({
-        events: [],
-        retrieve: () => Promise.resolve(session()),
-      });
+      const { client } = fakeClient({ events: [] });
       await expect(driverFor(client).resumeSession("sesn_123")).resolves.toBe(
         true
       );
@@ -411,7 +466,7 @@ describe("createClaudeDriver", () => {
     it("rejects foreign, archived, terminated, missing, and malformed sessions", async () => {
       const cases = [
         session({ agent: { id: "agent_other" } }),
-        session({ archived_at: "2026-01-01T00:00:00Z" }),
+        session({ archived_at: AT }),
         session({ status: "terminated" }),
       ];
       for (const value of cases) {
