@@ -206,7 +206,11 @@ For any other scheme, such as a bearer token or a timestamped signature, pass `v
 ```typescript
 import { timingSafeEqual } from "node:crypto";
 
-const expected = Buffer.from(`Bearer ${process.env.BRIDGE_TOKEN}`);
+const token = process.env.BRIDGE_TOKEN;
+if (!token) {
+  throw new Error("BRIDGE_TOKEN is required to verify webhook requests.");
+}
+const expected = Buffer.from(`Bearer ${token}`);
 
 createWebhookAdapter({
   verify: (request) => {
@@ -220,7 +224,7 @@ createWebhookAdapter({
 });
 ```
 
-`createWebhookAdapter` throws when neither `secret` nor `verify` is set, so the endpoint never accepts unauthenticated requests by accident.
+`createWebhookAdapter` throws when neither `secret` nor `verify` is set, so the endpoint never accepts unauthenticated requests by accident. A custom `verify` function is only as strict as you write it: fail at startup when its credential is missing, as the example does, so an unset variable can't turn into a guessable value such as `Bearer undefined`.
 
 The adapter accepts POST requests only and answers other methods with `405`. If your platform needs a GET handshake when you register the webhook, answer it in your route before calling `bot.webhooks.webhook`.
 
