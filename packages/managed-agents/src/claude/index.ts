@@ -18,14 +18,20 @@ import type {
 
 /** Options for {@link createClaudeDriver}. */
 export interface ClaudeDriverOptions {
-  /** Persistent Managed Agents agent ID. Sessions owned by other agents are never reused. */
-  agentId: string;
+  /**
+   * Persistent Managed Agents agent ID. Sessions owned by other agents are
+   * never reused. Defaults to the `CLAUDE_AGENT_ID` environment variable.
+   */
+  agentId?: string;
   /** API key. Defaults to the `ANTHROPIC_API_KEY` environment variable. Ignored when `client` is set. */
   apiKey?: string;
   /** Preconfigured Anthropic client. */
   client?: Anthropic;
-  /** Managed Agents environment ID used for new sessions. */
-  environmentId: string;
+  /**
+   * Managed Agents environment ID used for new sessions. Defaults to the
+   * `CLAUDE_ENVIRONMENT_ID` environment variable.
+   */
+  environmentId?: string;
   /**
    * Extra parameters for new sessions, such as `vault_ids` or `resources`.
    * `metadata.chat_thread_id` is always set to the Chat SDK thread ID.
@@ -280,17 +286,29 @@ async function* streamTurn(
  *
  * @example
  * ```ts
- * const agent = createManagedAgent({
- *   driver: createClaudeDriver({
- *     agentId: process.env.CLAUDE_AGENT_ID!,
- *     environmentId: process.env.CLAUDE_ENVIRONMENT_ID!,
- *   }),
- * });
+ * // Reads ANTHROPIC_API_KEY, CLAUDE_AGENT_ID, and CLAUDE_ENVIRONMENT_ID.
+ * const agent = createManagedAgent({ driver: createClaudeDriver() });
  * ```
+ *
+ * @throws Error when no agent ID or environment ID is passed or set in the
+ * environment.
  */
 export function createClaudeDriver(
-  options: ClaudeDriverOptions
+  options: ClaudeDriverOptions = {}
 ): ManagedAgentDriver {
+  const agentId = options.agentId ?? process.env.CLAUDE_AGENT_ID;
+  const environmentId =
+    options.environmentId ?? process.env.CLAUDE_ENVIRONMENT_ID;
+  if (!agentId) {
+    throw new Error(
+      "Claude agent ID is required. Pass agentId or set CLAUDE_AGENT_ID."
+    );
+  }
+  if (!environmentId) {
+    throw new Error(
+      "Claude environment ID is required. Pass environmentId or set CLAUDE_ENVIRONMENT_ID."
+    );
+  }
   const client =
     options.client ??
     new Anthropic(options.apiKey ? { apiKey: options.apiKey } : {});
@@ -302,8 +320,8 @@ export function createClaudeDriver(
       const { metadata, ...params } = options.sessionParams ?? {};
       const session = await client.beta.sessions.create({
         ...params,
-        agent: options.agentId,
-        environment_id: options.environmentId,
+        agent: agentId,
+        environment_id: environmentId,
         metadata: { ...metadata, chat_thread_id: threadId },
         title,
       });
@@ -317,7 +335,7 @@ export function createClaudeDriver(
       try {
         const session = await client.beta.sessions.retrieve(sessionId);
         return (
-          session.agent.id === options.agentId &&
+          session.agent.id === agentId &&
           typeof session.archived_at !== "string" &&
           session.status !== "terminated"
         );

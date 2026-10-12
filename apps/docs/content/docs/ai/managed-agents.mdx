@@ -40,10 +40,8 @@ import { createRedisState } from "@chat-adapter/state-redis";
 import { Chat } from "chat";
 
 const agent = createManagedAgent({
-  driver: createClaudeDriver({
-    agentId: process.env.CLAUDE_AGENT_ID!,
-    environmentId: process.env.CLAUDE_ENVIRONMENT_ID!,
-  }),
+  // Reads ANTHROPIC_API_KEY, CLAUDE_AGENT_ID, and CLAUDE_ENVIRONMENT_ID.
+  driver: createClaudeDriver(),
 });
 
 export const bot = new Chat({
@@ -85,12 +83,18 @@ Providers sometimes send a complete message that differs from the text they stre
 
 ## Claude Managed Agents
 
-Create the agent and environment once, outside the request path, then pass their IDs to the driver. The driver reads `ANTHROPIC_API_KEY` unless you pass `apiKey` or a configured `client`.
+Create the agent and environment once, outside the request path. With no options, the driver reads these environment variables:
+
+| Variable | Option |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | `apiKey`, or pass a configured `client` |
+| `CLAUDE_AGENT_ID` | `agentId` |
+| `CLAUDE_ENVIRONMENT_ID` | `environmentId` |
+
+Options you pass take precedence. `createClaudeDriver()` throws if the agent ID or environment ID is missing from both.
 
 ```typescript
 createClaudeDriver({
-  agentId: process.env.CLAUDE_AGENT_ID!,
-  environmentId: process.env.CLAUDE_ENVIRONMENT_ID!,
   sessionParams: { vault_ids: [process.env.CLAUDE_VAULT_ID!] },
 });
 ```

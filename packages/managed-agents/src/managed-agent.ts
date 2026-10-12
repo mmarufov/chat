@@ -147,7 +147,7 @@ async function* prepend<T>(
  * import { createClaudeDriver } from "@chat-adapter/managed-agents/claude";
  *
  * const agent = createManagedAgent({
- *   driver: createClaudeDriver({ agentId, environmentId }),
+ *   driver: createClaudeDriver(),
  * });
  *
  * bot.onNewMention(async (thread, message, context) => {

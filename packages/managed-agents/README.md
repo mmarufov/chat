@@ -29,10 +29,8 @@ import { createClaudeDriver } from "@chat-adapter/managed-agents/claude";
 import { Chat } from "chat";
 
 const agent = createManagedAgent({
-  driver: createClaudeDriver({
-    agentId: process.env.CLAUDE_AGENT_ID!,
-    environmentId: process.env.CLAUDE_ENVIRONMENT_ID!,
-  }),
+  // Reads ANTHROPIC_API_KEY, CLAUDE_AGENT_ID, and CLAUDE_ENVIRONMENT_ID.
+  driver: createClaudeDriver(),
 });
 
 const bot = new Chat({

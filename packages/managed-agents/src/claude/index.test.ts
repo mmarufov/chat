@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { collect } from "../test-utils";
 import type { ManagedAgentEvent } from "../types";
 import { createClaudeDriver } from "./index";
@@ -59,6 +59,53 @@ function turn(client: Anthropic, signal = new AbortController().signal) {
 }
 
 describe("createClaudeDriver", () => {
+  describe("configuration", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("reads the agent and environment IDs from the environment", async () => {
+      vi.stubEnv("CLAUDE_AGENT_ID", "agent_env");
+      vi.stubEnv("CLAUDE_ENVIRONMENT_ID", "env_env");
+      const { client, create } = fakeClient({ events: [] });
+
+      await createClaudeDriver({ client }).createSession({
+        threadId: "slack:C1:1.2",
+        title: "Hi",
+      });
+
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agent: "agent_env",
+          environment_id: "env_env",
+        })
+      );
+    });
+
+    it("prefers explicit options over the environment", async () => {
+      vi.stubEnv("CLAUDE_AGENT_ID", "agent_env");
+      vi.stubEnv("CLAUDE_ENVIRONMENT_ID", "env_env");
+      const { client, create } = fakeClient({ events: [] });
+
+      await driverFor(client).createSession({ threadId: "t", title: "Hi" });
+
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({ agent: "agent_1", environment_id: "env_1" })
+      );
+    });
+
+    it("names the missing variable", () => {
+      vi.stubEnv("CLAUDE_AGENT_ID", "");
+      vi.stubEnv("CLAUDE_ENVIRONMENT_ID", "");
+      const { client } = fakeClient({ events: [] });
+
+      expect(() => createClaudeDriver({ client })).toThrow("CLAUDE_AGENT_ID");
+      expect(() => createClaudeDriver({ agentId: "agent_1", client })).toThrow(
+        "CLAUDE_ENVIRONMENT_ID"
+      );
+    });
+  });
+
   it("creates sessions tagged with the chat thread", async () => {
     const { client, create } = fakeClient({ events: [] });
     const driver = createClaudeDriver({
