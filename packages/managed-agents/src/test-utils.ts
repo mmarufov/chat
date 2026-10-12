@@ -1,10 +1,17 @@
-import type { Message, SentMessage, StreamChunk, Thread } from "chat";
+import {
+  type Message,
+  type SentMessage,
+  type StreamChunk,
+  StreamingPlan,
+  type Thread,
+} from "chat";
 import { vi } from "vitest";
 import type { ManagedAgentEvent } from "./types";
 
 export interface PostedStream {
   chunks: Array<string | StreamChunk>;
   kind: "stream";
+  options?: unknown;
   text: string;
 }
 
@@ -40,14 +47,18 @@ export function createFakeThread(
   fake.thread = {
     id: "slack:C1:1.2",
     post: vi.fn(async (message: unknown) => {
+      const plan = message instanceof StreamingPlan ? message : undefined;
+      const iterable = plan ? plan.stream : message;
       if (
-        message !== null &&
-        typeof message === "object" &&
-        Symbol.asyncIterator in message
+        iterable !== null &&
+        typeof iterable === "object" &&
+        Symbol.asyncIterator in iterable
       ) {
-        const posted: PostedStream = { chunks: [], kind: "stream", text: "" };
+        const posted: PostedStream = plan
+          ? { chunks: [], kind: "stream", options: plan.options, text: "" }
+          : { chunks: [], kind: "stream", text: "" };
         fake.posted.push(posted);
-        for await (const chunk of message as AsyncIterable<
+        for await (const chunk of iterable as AsyncIterable<
           string | StreamChunk
         >) {
           if (controller.signal.aborted) {
@@ -58,9 +69,9 @@ export function createFakeThread(
             posted.text += chunk;
           }
         }
-      } else {
-        fake.posted.push({ kind: "message", value: message });
+        return plan ?? sent;
       }
+      fake.posted.push({ kind: "message", value: message });
       return sent;
     }),
     setState: vi.fn((state: Record<string, unknown>) => {

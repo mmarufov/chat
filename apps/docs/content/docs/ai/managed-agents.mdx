@@ -69,6 +69,18 @@ Use the `queue` [concurrency strategy](/docs/concurrency) so turns on a thread r
 
 Use a persistent [state adapter](/docs/state-adapters). The session ID lives in thread state, so the memory adapter forgets it on restart.
 
+## Tool progress in Slack
+
+Tool calls stream as `task_update` chunks. Slack shows them as task cards when the reply uses [native streaming](/docs/streaming), which needs the agent/assistant feature and the `assistant:write` scope in your Slack app manifest. Without them, or on platforms without structured chunks, the reply streams as text only.
+
+Set `taskDisplay: "plan"` to group the tool calls into one plan block instead of separate cards:
+
+```typescript
+createManagedAgent({ driver, taskDisplay: "plan" });
+```
+
+Providers sometimes send a complete message that differs from the text they streamed. When that happens, the posted message is edited to the complete text. If the message already shows task cards, it is left as streamed, because an edit replaces the whole message and would remove the cards. The same applies when `taskDisplay` is set, because those streams can't be edited after they finish.
+
 ## Claude Managed Agents
 
 Create the agent and environment once, outside the request path, then pass their IDs to the driver. The driver reads `ANTHROPIC_API_KEY` unless you pass `apiKey` or a configured `client`.

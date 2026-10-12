@@ -9,10 +9,12 @@ import {
   ConsoleLogger,
   type Message,
   type MessageContext,
+  type SentMessage,
   type StreamChunk,
+  StreamingPlan,
   type Thread,
 } from "chat";
-import { toChatStream } from "./render";
+import { type TurnOutcome, toChatStream } from "./render";
 import type {
   ManagedAgentDriver,
   ManagedAgentEvent,
@@ -234,6 +236,34 @@ export function createManagedAgent(options: ManagedAgentOptions): ManagedAgent {
     return Card({ title: messages.approvalTitle, children });
   }
 
+  /**
+   * Replace the streamed preview when the complete message diverged from it.
+   *
+   * An edit replaces the whole message, which would drop Slack task cards,
+   * so a preview that already shows tool progress is kept. Previews are
+   * prefixes of the complete text in almost every case.
+   */
+  async function reconcile<TState>(
+    thread: Thread<TState>,
+    outcome: TurnOutcome,
+    sent: SentMessage | undefined
+  ): Promise<void> {
+    if (!outcome.mismatch || thread.signal.aborted) {
+      return;
+    }
+    const text = outcome.finalText();
+    if (!text) {
+      return;
+    }
+    if (sent && !outcome.streamedTasks) {
+      await sent.edit({ markdown: text });
+      return;
+    }
+    logger.warn(
+      `${driver.name} final message differs from its streamed preview; kept the preview`
+    );
+  }
+
   async function runTurn<TState>(
     thread: Thread<TState>,
     events: AsyncIterable<ManagedAgentEvent>
@@ -244,15 +274,17 @@ export function createManagedAgent(options: ManagedAgentOptions): ManagedAgent {
     // streaming message.
     const first = await stream.next();
     if (!first.done) {
-      const sent = await thread.post(
-        prepend<string | StreamChunk>(first.value, stream)
-      );
-      if (outcome.mismatch && !thread.signal.aborted) {
-        const text = outcome.finalText();
-        if (text) {
-          await sent.edit({ markdown: text });
-        }
+      const chunks = prepend<string | StreamChunk>(first.value, stream);
+      let sent: SentMessage | undefined;
+      if (options.taskDisplay) {
+        // StreamingPlan carries stream options but returns no SentMessage.
+        await thread.post(
+          new StreamingPlan(chunks, { groupTasks: options.taskDisplay })
+        );
+      } else {
+        sent = await thread.post(chunks);
       }
+      await reconcile(thread, outcome, sent);
     }
 
     if (thread.signal.aborted) {

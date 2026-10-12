@@ -182,6 +182,12 @@ export interface ManagedAgentOptions {
   messages?: Partial<ManagedAgentMessages>;
   /** Thread state key that stores the session. Default: `"managedAgent"`. */
   stateKey?: string;
+  /**
+   * How Slack shows tool progress: `"timeline"` shows each tool call as a
+   * card next to the text, `"plan"` groups them into one plan block.
+   * Defaults to Slack's default (`"timeline"`). Other platforms ignore it.
+   */
+  taskDisplay?: "timeline" | "plan";
 }
 
 /** Session reference stored in thread state. */

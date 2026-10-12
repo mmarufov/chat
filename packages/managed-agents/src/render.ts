@@ -17,6 +17,8 @@ export interface TurnOutcome {
   /** `true` when a complete message did not extend its streamed preview. */
   mismatch: boolean;
   sessionEnded: boolean;
+  /** `true` once a tool call was streamed as a `task_update` chunk. */
+  streamedTasks: boolean;
 }
 
 const TOOL_STATUS: Record<
@@ -55,6 +57,7 @@ export function toChatStream(events: AsyncIterable<ManagedAgentEvent>): {
     },
     mismatch: false,
     sessionEnded: false,
+    streamedTasks: false,
   };
 
   let emittedText = false;
@@ -107,6 +110,7 @@ export function toChatStream(events: AsyncIterable<ManagedAgentEvent>): {
           if (event.name) {
             toolNames.set(event.id, event.name);
           }
+          outcome.streamedTasks = true;
           yield {
             id: event.id,
             status: TOOL_STATUS[event.status],

@@ -150,6 +150,62 @@ describe("createManagedAgent", () => {
     expect(fake.edits).toEqual([{ markdown: "Final" }]);
   });
 
+  it("keeps a preview that shows tool progress instead of editing it", async () => {
+    const driver = createDriver([
+      [
+        { messageId: "m1", text: "Draft", type: "text-delta" },
+        { id: "t1", name: "web_search", status: "running", type: "tool-call" },
+        { messageId: "m1", text: "Final", type: "message" },
+        complete,
+      ],
+    ]);
+    const logger = { error: vi.fn(), warn: vi.fn() };
+    const agent = createManagedAgent({ driver, logger });
+    const fake = createFakeThread();
+
+    await agent.reply(fake.thread, fakeMessage("Hi"));
+
+    expect(fake.edits).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      "fake final message differs from its streamed preview; kept the preview"
+    );
+  });
+
+  it("passes the task display mode to the stream", async () => {
+    const driver = createDriver([
+      [
+        { id: "t1", name: "web_search", status: "running", type: "tool-call" },
+        { messageId: "m1", text: "Done", type: "message" },
+        complete,
+      ],
+    ]);
+    const agent = createManagedAgent({
+      driver,
+      logger: silentLogger,
+      taskDisplay: "plan",
+    });
+    const fake = createFakeThread();
+
+    await agent.reply(fake.thread, fakeMessage("Hi"));
+
+    expect(fake.posted).toEqual([
+      {
+        chunks: [
+          {
+            id: "t1",
+            status: "in_progress",
+            title: "web_search",
+            type: "task_update",
+          },
+          "Done",
+        ],
+        kind: "stream",
+        options: { groupTasks: "plan" },
+        text: "Done",
+      },
+    ]);
+  });
+
   it("does not post an empty stream when the turn has no output", async () => {
     const driver = createDriver([[]]);
     const agent = createManagedAgent({
