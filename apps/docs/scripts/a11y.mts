@@ -31,25 +31,13 @@ const TRAILING_SLASH = /\/$/;
 // pages it is allowed on, or "*" for every page. Remove an entry once it is
 // fixed; the script prints entries that no longer match anything.
 const KNOWN_VIOLATIONS: Record<string, "*" | string[]> = {
-  // The logo link in the shared Geistdocs navbar has no accessible name.
-  "link-name": "*",
-  // Muted foreground text and some syntax highlighting tokens.
-  "color-contrast": "*",
-  // Wide tables and the home page code windows scroll without being focusable.
+  // Wide MDX tables scroll without being focusable. The table wrapper comes
+  // from @vercel/geistdocs.
   "scrollable-region-focusable": [
-    "/",
     "/adapters/official/gchat",
     "/adapters/official/linear",
     "/docs/testing",
   ],
-  // Icon-only copy buttons on the home page.
-  "button-name": ["/"],
-  // Example group tabs on the home page.
-  "target-size": ["/"],
-  // Radix tab trigger IDs in the adapter filter tabs.
-  "aria-valid-attr-value": ["/adapters"],
-  // GFM task list checkboxes.
-  label: ["/docs/contributing/documenting"],
 };
 
 type ColorScheme = (typeof COLOR_SCHEMES)[number];
