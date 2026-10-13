@@ -4,7 +4,7 @@ Guidance for coding agents working in this package. Read the repository [AGENTS.
 
 ## Overview
 
-This package connects hosted agent sessions (Claude Managed Agents, Cursor agents) to Chat SDK threads. It is not a platform or state adapter, so the konsistent adapter rules do not apply.
+This package connects hosted agent sessions (Claude Managed Agents, Cursor agents, OpenAI Agents API) to Chat SDK threads. It is not a platform or state adapter, so the konsistent adapter rules do not apply.
 
 ## Layout
 
@@ -16,6 +16,7 @@ src/
   render.ts           Driver events to a Chat SDK stream
   claude/index.ts     Claude Managed Agents driver (@anthropic-ai/sdk)
   cursor/index.ts     Cursor driver (@cursor/sdk)
+  openai/index.ts     OpenAI Agents API driver (openai)
   test-utils.ts       Fake thread and helpers for unit tests
   chat.integration.test.ts  Real Chat + ThreadImpl with a mock adapter
   index.test-d.ts     Type tests for the public API

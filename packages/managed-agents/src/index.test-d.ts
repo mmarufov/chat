@@ -10,6 +10,7 @@ import {
   type ManagedAgentEvent,
   type ManagedAgentOptions,
 } from "./index";
+import { createOpenAIDriver, type OpenAIDriverOptions } from "./openai/index";
 
 declare const driver: ManagedAgentDriver;
 
@@ -95,5 +96,17 @@ describe("public API types", () => {
     expectTypeOf(
       createCursorDriver({ agent: { cloud: { repos: [] } } })
     ).toEqualTypeOf<ManagedAgentDriver>();
+  });
+
+  it("lets the OpenAI driver read its agent from the environment", () => {
+    expectTypeOf(createOpenAIDriver).toBeCallableWith();
+    expectTypeOf<OpenAIDriverOptions>().toEqualTypeOf<
+      Partial<OpenAIDriverOptions>
+    >();
+    expectTypeOf(
+      createOpenAIDriver({ environment: { type: "openai_hosted" } })
+    ).toEqualTypeOf<ManagedAgentDriver>();
+    // @ts-expect-error unknown environment types are rejected
+    createOpenAIDriver({ environment: { type: "cloud" } });
   });
 });

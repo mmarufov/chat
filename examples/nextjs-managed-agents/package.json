@@ -17,6 +17,7 @@
     "@cursor/sdk": "^1.0.37",
     "chat": "workspace:*",
     "next": "^16.3.6",
+    "openai": "^7.32.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

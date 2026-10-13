@@ -1,6 +1,6 @@
 # nextjs-managed-agents
 
-A Slack bot that runs a hosted agent in each thread, built with Chat SDK, Next.js, and [`@chat-adapter/managed-agents`](../../packages/managed-agents). It works with [Claude Managed Agents](https://platform.claude.com/docs/en/managed-agents/overview) or [Cursor agents](https://cursor.com/docs/sdk/typescript); set `AGENT_PROVIDER` to choose.
+A Slack bot that runs a hosted agent in each thread, built with Chat SDK, Next.js, and [`@chat-adapter/managed-agents`](../../packages/managed-agents). It works with [Claude Managed Agents](https://platform.claude.com/docs/en/managed-agents/overview), [Cursor agents](https://cursor.com/docs/sdk/typescript), or the [OpenAI Agents API](https://developers.openai.com/api/docs/guides/agents-api/overview); set `AGENT_PROVIDER` to choose.
 
 This project shows:
 
@@ -19,6 +19,7 @@ Mention the bot in a channel and it subscribes to the thread, so follow-ups don'
 - A Slack app (`slack-manifest.yml` has the scopes, events, and interactivity it needs)
 - For Claude: an Anthropic API key with Managed Agents access, and an existing agent ID and environment ID
 - For Cursor: a Cursor API key
+- For OpenAI: an OpenAI API key with Agents API access, and an existing agent ID
 
 ## 1) Install
 
@@ -49,6 +50,12 @@ For `AGENT_PROVIDER=cursor`:
 - `CURSOR_API_KEY`
 - `CURSOR_REPO_URL` (optional; without it the agent runs on an empty cloud VM, which must be enabled for your account)
 - `CURSOR_MODEL` (optional, default `composer-2.5`)
+
+For `AGENT_PROVIDER=openai`:
+
+- `OPENAI_API_KEY`
+- `OPENAI_AGENT_ID`
+- `OPENAI_ENVIRONMENT_ID` (optional; without it sessions run with no execution environment)
 
 Optional:
 

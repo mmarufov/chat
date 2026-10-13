@@ -1,6 +1,6 @@
 ---
 title: Managed agents
-description: Run Claude Managed Agents or Cursor agents in any chat thread, with one provider session per thread, streamed replies, and tool approvals.
+description: Run Claude Managed Agents, Cursor agents, or the OpenAI Agents API in any chat thread, with one provider session per thread, streamed replies, and tool approvals.
 type: guide
 prerequisites:
   - /docs/usage
@@ -28,8 +28,9 @@ Install the package and the SDK for your provider.
 | --- | --- | --- |
 | [Claude Managed Agents](https://platform.claude.com/docs/en/managed-agents/overview) | `@chat-adapter/managed-agents/claude` | `@anthropic-ai/sdk` |
 | [Cursor agents](https://cursor.com/docs/sdk/typescript) | `@chat-adapter/managed-agents/cursor` | `@cursor/sdk` |
+| [OpenAI Agents API](https://developers.openai.com/api/docs/guides/agents-api/overview) | `@chat-adapter/managed-agents/openai` | `openai` |
 
-For a runnable version, see the [Next.js managed agents example](https://github.com/vercel/chat/tree/main/examples/nextjs-managed-agents), a Slack bot that switches between Claude and Cursor with the `AGENT_PROVIDER` environment variable.
+For a runnable version, see the [Next.js managed agents example](https://github.com/vercel/chat/tree/main/examples/nextjs-managed-agents), a Slack bot that switches between Claude, Cursor, and OpenAI with the `AGENT_PROVIDER` environment variable.
 
 ## Usage
 
@@ -120,6 +121,27 @@ createCursorDriver({
 Each thread gets one Cursor agent, and each message is one run. Use the `cloud` runtime on serverless platforms, because local agents keep their conversation on the machine that created them. The `agent` options are passed to both `Agent.create()` and `Agent.resume()`. Set per-run options such as `mode` with `send`.
 
 The Cursor SDK has no approval API, so a run that asks for approval is cancelled and the thread is told why. Gate tools with Cursor hooks or sandboxing instead.
+
+## OpenAI Agents API
+
+```typescript
+import { createOpenAIDriver } from "@chat-adapter/managed-agents/openai";
+
+// Reads OPENAI_API_KEY, OPENAI_AGENT_ID, and OPENAI_ENVIRONMENT_ID.
+createOpenAIDriver();
+```
+
+With no options, the driver reads these environment variables:
+
+| Variable | Option |
+| --- | --- |
+| `OPENAI_API_KEY` | `apiKey`, or pass a configured `client` |
+| `OPENAI_AGENT_ID` | `agentId`, or configure the agent inline with `agent` |
+| `OPENAI_ENVIRONMENT_ID` | `environment`. Without either, sessions use `{ type: "none" }` |
+
+Each thread gets one Agents API session, tagged with `metadata.chat_thread_id`. A stored session is only reused if it belongs to `agentId` and has not failed.
+
+The Agents API asks for client input through required actions: computer-use approvals, client function calls, and environment connections. None of these fit an Approve/Deny button, so a turn that needs one stops and the thread is told which action it needed. The Agents API is in beta and its endpoints are not eligible for Zero Data Retention.
 
 ## Customizing messages
 

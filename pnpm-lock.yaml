@@ -302,6 +302,9 @@ importers:
       next:
         specifier: ^16.3.6
         version: 16.3.6(@opentelemetry/api@1.9.0)(@types/node@25.9.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      openai:
+        specifier: ^7.32.0
+        version: 7.32.0(@smithy/signature-v4@5.6.6)(undici@7.29.0)(ws@8.21.0)(zod@4.6.5)
       react:
         specifier: ^19.0.0
         version: 19.3.0
@@ -976,7 +979,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^5.0.3
-        version: 5.0.3(@opentelemetry/api@1.9.0)(@types/node@25.9.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.1(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))
+        version: 5.0.3(@opentelemetry/api@1.9.0)(@types/node@25.9.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.1(@types/node@25.9.2)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))
 
   packages/chat:
     dependencies:
@@ -1158,6 +1161,9 @@ importers:
       '@types/node':
         specifier: ^25.9.2
         version: 25.9.2
+      openai:
+        specifier: ^7.32.0
+        version: 7.32.0(@smithy/signature-v4@5.6.6)(undici@7.29.0)(ws@8.21.0)(zod@4.6.5)
       tsup:
         specifier: ^8.5.1
         version: 8.5.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.28)(tsx@4.22.3)(typescript@5.9.3)(yaml@2.9.0)
@@ -1166,7 +1172,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^5.0.3
-        version: 5.0.3(@opentelemetry/api@1.9.0)(@types/node@25.9.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.1(@types/node@25.9.2)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))
+        version: 5.0.3(@opentelemetry/api@1.9.0)(@types/node@25.9.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.1(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))
 
   packages/state-ioredis:
     dependencies:
@@ -10793,6 +10799,30 @@ packages:
       zod:
         optional: true
 
+  openai@7.32.0:
+    resolution: {integrity: sha512-avqxu/jl1gsVBCBgFNPr9sTh+wZppQphuhhFy1zEvAJxEaJ4t0ery6hZdOT9kws/EcNTARoQcZs2IT3bliE1SA==}
+    engines: {node: '>=22.0.0'}
+    peerDependencies:
+      '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
+      '@smithy/hash-node': '>=4.3.0 <5'
+      '@smithy/signature-v4': '>=5.4.0 <6'
+      undici: '>=5 <9'
+      ws: ^8.21.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      '@aws-sdk/credential-provider-node':
+        optional: true
+      '@smithy/hash-node':
+        optional: true
+      '@smithy/signature-v4':
+        optional: true
+      undici:
+        optional: true
+      ws:
+        optional: true
+      zod:
+        optional: true
+
   ora@8.2.0:
     resolution: {integrity: sha512-weP+BZ8MVNnlCm8c0Qdc1WSWq4Qn7I+9CJGm7Qali6g44e/PUzbjNqJX5NJ9ljlNMosfJvg1fKEGILklK9cwnw==}
     engines: {node: '>=18'}
@@ -19263,7 +19293,7 @@ snapshots:
       obug: 2.2.1
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 5.0.3(@opentelemetry/api@1.9.0)(@types/node@25.9.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.1(@types/node@25.9.2)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))
+      vitest: 5.0.3(@opentelemetry/api@1.9.0)(@types/node@25.9.2)(@vitest/coverage-v8@5.0.3)(vite@8.3.1(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))
 
   '@vitest/expect@5.0.3':
     dependencies:
@@ -24148,6 +24178,13 @@ snapshots:
   openai@6.49.0(@smithy/signature-v4@5.6.6)(ws@8.21.0)(zod@4.6.5):
     optionalDependencies:
       '@smithy/signature-v4': 5.6.6
+      ws: 8.21.0
+      zod: 4.6.5
+
+  openai@7.32.0(@smithy/signature-v4@5.6.6)(undici@7.29.0)(ws@8.21.0)(zod@4.6.5):
+    optionalDependencies:
+      '@smithy/signature-v4': 5.6.6
+      undici: 7.29.0
       ws: 8.21.0
       zod: 4.6.5
 

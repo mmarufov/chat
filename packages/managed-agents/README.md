@@ -14,6 +14,7 @@ Documentation: [chat-sdk.dev/docs/ai/managed-agents](https://chat-sdk.dev/docs/a
 | --- | --- | --- |
 | [Claude Managed Agents](https://platform.claude.com/docs/en/managed-agents/overview) | `@chat-adapter/managed-agents/claude` | `@anthropic-ai/sdk` |
 | [Cursor agents](https://cursor.com/docs/sdk/typescript) | `@chat-adapter/managed-agents/cursor` | `@cursor/sdk` |
+| [OpenAI Agents API](https://developers.openai.com/api/docs/guides/agents-api/overview) | `@chat-adapter/managed-agents/openai` | `openai` |
 
 ## Installation
 

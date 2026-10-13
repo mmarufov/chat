@@ -4,8 +4,9 @@ import {
 } from "@chat-adapter/managed-agents";
 import { createClaudeDriver } from "@chat-adapter/managed-agents/claude";
 import { createCursorDriver } from "@chat-adapter/managed-agents/cursor";
+import { createOpenAIDriver } from "@chat-adapter/managed-agents/openai";
 
-/** Picks the agent provider from AGENT_PROVIDER: "claude" (default) or "cursor". */
+/** Picks the agent provider from AGENT_PROVIDER: "claude" (default), "cursor", or "openai". */
 function createDriver(): ManagedAgentDriver {
   const provider = process.env.AGENT_PROVIDER ?? "claude";
 
@@ -25,8 +26,13 @@ function createDriver(): ManagedAgentDriver {
     });
   }
 
+  if (provider === "openai") {
+    // Reads OPENAI_API_KEY, OPENAI_AGENT_ID, and OPENAI_ENVIRONMENT_ID.
+    return createOpenAIDriver();
+  }
+
   throw new Error(
-    `Unknown AGENT_PROVIDER "${provider}". Use "claude" or "cursor".`
+    `Unknown AGENT_PROVIDER "${provider}". Use "claude", "cursor", or "openai".`
   );
 }
 
