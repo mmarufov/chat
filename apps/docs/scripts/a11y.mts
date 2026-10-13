@@ -26,19 +26,12 @@ const CONCURRENCY = Math.min(4, availableParallelism());
 const SITEMAP_LINK = /\]\((\/[^)\s]*)\)/g;
 const TRAILING_SLASH = /\/$/;
 
-// Violations that existed when this check was added. They are reported as
-// warnings instead of failing the job. Each entry maps an axe rule ID to the
-// pages it is allowed on, or "*" for every page. Remove an entry once it is
-// fixed; the script prints entries that no longer match anything.
-const KNOWN_VIOLATIONS: Record<string, "*" | string[]> = {
-  // Wide MDX tables scroll without being focusable. The table wrapper comes
-  // from @vercel/geistdocs.
-  "scrollable-region-focusable": [
-    "/adapters/official/gchat",
-    "/adapters/official/linear",
-    "/docs/testing",
-  ],
-};
+// Violations that cannot be fixed yet, such as ones that come from a
+// dependency. They are reported as warnings instead of failing the job. Each
+// entry maps an axe rule ID to the pages it is allowed on, or "*" for every
+// page. Remove an entry once it is fixed; the script prints entries that no
+// longer match anything.
+const KNOWN_VIOLATIONS: Record<string, "*" | string[]> = {};
 
 type ColorScheme = (typeof COLOR_SCHEMES)[number];
 

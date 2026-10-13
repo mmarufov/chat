@@ -1,3 +1,4 @@
+import { Table as GeistdocsTable } from "@vercel/geistdocs/components/table";
 import { createMdxComponents } from "@vercel/geistdocs/mdx";
 import type { MDXComponents } from "mdx/types";
 import type { ComponentProps } from "react";
@@ -6,6 +7,20 @@ import { AdapterSlugList } from "./adapter-slug-list";
 import { FeatureSupport } from "./feature-support";
 import { GlobalFeatureMatrix } from "./global-feature-matrix";
 import { PackageInstall } from "./package-install";
+
+// The Geistdocs table scrolls inside a wrapper that keyboard users cannot
+// focus. Move scrolling to a focusable region around it so wide tables can be
+// scrolled with the arrow keys.
+const Table = (props: ComponentProps<"table">) => (
+  <div
+    aria-label="Table"
+    className="overflow-x-auto rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-700 [&>div]:overflow-visible"
+    role="region"
+    tabIndex={0}
+  >
+    <GeistdocsTable {...props} />
+  </div>
+);
 
 // GFM task list items render a bare checkbox. Wrapping the item in a label
 // gives the checkbox its text as an accessible name.
@@ -24,6 +39,8 @@ export const getMDXComponents = (
 ): MDXComponents =>
   createMdxComponents({
     li: ListItem,
+    table: Table,
+    Table,
 
     Check,
     Cross,
