@@ -8,7 +8,6 @@
 // colors. The script exits non-zero when a page has a WCAG 2.2 A or AA
 // violation that is not listed in KNOWN_VIOLATIONS.
 
-import { availableParallelism } from "node:os";
 import { AxeBuilder } from "@axe-core/playwright";
 import { type Browser, chromium } from "playwright";
 
@@ -22,7 +21,8 @@ const WCAG_TAGS = [
 ];
 const COLOR_SCHEMES = ["light", "dark"] as const;
 const EXTRA_PATHS = ["/", "/adapters", "/resources"];
-const CONCURRENCY = Math.min(4, availableParallelism());
+// Pages spend most of their time loading, so this can exceed the CPU count.
+const CONCURRENCY = 6;
 const SITEMAP_LINK = /\]\((\/[^)\s]*)\)/g;
 const TRAILING_SLASH = /\/$/;
 
