@@ -4,6 +4,7 @@ description: Generic adapter for any platform that delivers messages as HTTP web
 packageName: "@chat-adapter/webhook"
 slug: webhook
 type: platform
+logo: webhook
 tagline: Connect platforms that have no dedicated adapter, such as self-hosted messengers and HTTP bridges, by describing how to read their webhooks and send their replies.
 beta: true
 ---
@@ -19,6 +20,10 @@ Use a dedicated adapter when one exists for your platform. It covers cards, reac
 ## Quick start
 
 This example connects a platform that posts `{ chatId, messageId, text, sender }` and accepts replies at `https://api.example.com/messages`. Replace the payload type, field names, and API call with your platform's.
+
+<Callout type="info">
+The adapter auto-detects `WEBHOOK_SECRET` from the environment and rejects requests whose signature doesn't match. See [Verification](#verification).
+</Callout>
 
 ```typescript title="lib/bot.ts" lineNumbers
 import { Chat } from "chat";
@@ -64,8 +69,6 @@ bot.onNewMention(async (thread, message) => {
   await thread.post(`You said: ${message.text}`);
 });
 ```
-
-The adapter reads `WEBHOOK_SECRET` from the environment and rejects requests whose signature doesn't match. See [Verification](#verification).
 
 The memory state adapter keeps subscriptions, locks, and thread history in process memory, which suits local development. Use [Redis](/adapters/official/redis) or [PostgreSQL](/adapters/official/postgres) in production.
 
@@ -320,6 +323,13 @@ HTTP platforms rarely expose a history API, so the adapter sets `persistThreadHi
 Example: `webhook:Y2hhdC0x` for channel `chat-1`.
 
 The adapter base64url-encodes both segments, so platform IDs can contain colons and other special characters.
+
+## Limitations
+
+- Only POST requests with JSON bodies are accepted. Answer GET verification handshakes in your route before calling the adapter, and override the protected `parseBody` method in a subclass to accept other body formats.
+- Reactions, interactive actions, and modals are not supported.
+- Direct messages are not detected. Set `isMention: true` in `parse` for platforms where every message is meant for the bot.
+- Thread history includes only messages Chat SDK has stored in your state adapter, not messages sent before the bot was connected.
 
 ## Feature support
 

@@ -59,6 +59,7 @@ export const webhook = {
     postChannelMessage: "no",
   },
   group: "official",
+  icon: "webhook",
   name: "Webhook",
   packageName: "@chat-adapter/webhook",
   peerDeps: [],

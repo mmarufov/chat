@@ -27,6 +27,7 @@ import {
   twilio,
   twitch,
   web,
+  webhook,
   whatsapp,
   x,
   xchat,
@@ -55,6 +56,7 @@ const iconMap: Record<
   messenger,
   notion,
   twitch,
+  webhook,
   x,
   xchat,
 };

@@ -1,3 +1,5 @@
+[![Webhook adapter for Chat SDK](https://chat-sdk.dev/en/adapters/official/webhook/og)](https://chat-sdk.dev/adapters/official/webhook)
+
 # @chat-adapter/webhook
 
 > npm package: [`@chat-adapter/webhook`](https://www.npmjs.com/package/@chat-adapter/webhook)
@@ -12,7 +14,7 @@ Documentation: [chat-sdk.dev/adapters/official/webhook](https://chat-sdk.dev/ada
 ## Installation
 
 ```bash
-pnpm add @chat-adapter/webhook @chat-adapter/state-memory
+pnpm add @chat-adapter/webhook
 ```
 
 ## Scaffold with the CLI
@@ -74,6 +76,12 @@ Route `POST /api/webhooks/webhook` to `bot.webhooks.webhook(request)`.
 ## Verification
 
 The adapter verifies an HMAC-SHA256 hex digest of the raw body, read from the `x-webhook-signature` header with or without a `sha256=` prefix, using `WEBHOOK_SECRET`. Change the header with `signatureHeader`, or pass a `verify` function for other schemes. `createWebhookAdapter` throws when neither a secret nor `verify` is set.
+
+## Environment variables
+
+```bash
+WEBHOOK_SECRET=...   # Shared secret for HMAC-SHA256 signature verification. Not needed when you pass secret or verify.
+```
 
 ## Optional callbacks
 
