@@ -6,12 +6,19 @@ slug: webhook
 type: platform
 logo: webhook
 tagline: Connect platforms that have no dedicated adapter, such as self-hosted messengers and HTTP bridges, by describing how to read their webhooks and send their replies.
-beta: true
 ---
 
 The Webhook adapter runs your Chat SDK handlers on any platform that can POST a webhook to your app and accept replies over HTTP. You supply two functions: `parse` turns a verified request into messages, and `send` delivers replies. The adapter handles signature verification, thread IDs, Markdown, and routing to your handlers.
 
 Use a dedicated adapter when one exists for your platform. It covers cards, reactions, history, and other features that the Webhook adapter leaves to you.
+
+## Create a new bot
+
+Scaffold a Next.js bot with the Webhook adapter using [`create-chat-sdk`](/docs/create-chat-sdk):
+
+<CreateChatSdk adapters="webhook memory" />
+
+The generated app uses the [Memory state adapter](/adapters/official/memory) for local development and contains placeholder `parse` and `send` functions to fill in for your platform. To add the adapter to an existing app, start at [Install](#install).
 
 ## Install
 

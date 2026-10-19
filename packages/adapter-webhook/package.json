@@ -1,6 +1,6 @@
 {
   "name": "@chat-adapter/webhook",
-  "version": "4.41.1",
+  "version": "4.43.0",
   "description": "Generic webhook adapter for Chat SDK: connect any platform that sends HTTP webhooks and accepts messages over HTTP",
   "type": "module",
   "engines": {

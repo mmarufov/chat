@@ -2,7 +2,6 @@ import { secretEnv } from "../../env";
 import type { CatalogAdapter } from "../../types";
 
 export const webhook = {
-  beta: true,
   description:
     "Connect any platform that delivers messages as HTTP webhooks and accepts replies over HTTP, with your own parse and send functions.",
   env: {
