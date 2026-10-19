@@ -4763,6 +4763,36 @@ describe("TelegramAdapter", () => {
     );
   });
 
+  it.each([
+    {
+      name: "keeps a parsed regular supergroup reply on the chat thread",
+      topic: {},
+      expected: "telegram:-100123",
+    },
+    {
+      name: "keeps a parsed forum topic message on its topic thread",
+      topic: { is_topic_message: true },
+      expected: "telegram:-100123:5",
+    },
+  ])("$name", ({ topic, expected }) => {
+    const adapter = createTelegramAdapter({
+      botToken: "token",
+      mode: "webhook",
+      logger: mockLogger,
+      userName: "mybot",
+    });
+
+    const parsed = adapter.parseMessage(
+      sampleMessage({
+        chat: { id: -100123, type: "supergroup", title: "General" },
+        message_thread_id: 5,
+        ...topic,
+      })
+    );
+
+    expect(parsed.threadId).toBe(expected);
+  });
+
   it("decodes structured callback payloads into action id and value", async () => {
     mockFetch
       .mockResolvedValueOnce(
@@ -4826,6 +4856,74 @@ describe("TelegramAdapter", () => {
 
     expect(event.actionId).toBe("approve");
     expect(event.value).toBe("request-123");
+  });
+
+  it.each([
+    {
+      // A button on a bot reply in a regular supergroup: the bot's message
+      // carries message_thread_id but no is_topic_message.
+      name: "routes a button click on a regular supergroup reply to the chat thread",
+      topic: {},
+      expected: "telegram:-100123",
+    },
+    {
+      name: "routes a button click in a forum topic to its topic thread",
+      topic: { is_topic_message: true },
+      expected: "telegram:-100123:5",
+    },
+  ])("$name", async ({ topic, expected }) => {
+    mockFetch
+      .mockResolvedValueOnce(
+        telegramOk({
+          id: 999,
+          is_bot: true,
+          first_name: "Bot",
+          username: "mybot",
+        })
+      )
+      .mockResolvedValueOnce(telegramOk(true));
+
+    const adapter = createTelegramAdapter({
+      botToken: "token",
+      mode: "webhook",
+      logger: mockLogger,
+      userName: "mybot",
+    });
+
+    const chat = createMockChat();
+    await adapter.initialize(chat);
+
+    await adapter.handleWebhook(
+      new Request("https://example.com/webhook", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          update_id: 2,
+          callback_query: {
+            id: "callback-1",
+            from: {
+              id: 456,
+              is_bot: false,
+              first_name: "User",
+              username: "user",
+            },
+            message: sampleMessage({
+              chat: { id: -100123, type: "supergroup", title: "General" },
+              message_thread_id: 5,
+              ...topic,
+            }),
+            chat_instance: "ci_1",
+            data: encodeTelegramCallbackData("approve", "request-123"),
+          },
+        }),
+      })
+    );
+
+    const processAction = chat.processAction as ReturnType<typeof vi.fn>;
+    expect(processAction).toHaveBeenCalledTimes(1);
+
+    const [event] = processAction.mock.calls[0] as [{ threadId: string }];
+    expect(event.threadId).toBe(expected);
   });
 
   it("falls back to raw callback data for non-encoded callback payloads", async () => {
