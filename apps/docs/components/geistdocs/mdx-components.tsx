@@ -1,25 +1,52 @@
 import { Table as GeistdocsTable } from "@vercel/geistdocs/components/table";
-import { createMdxComponents } from "@vercel/geistdocs/mdx";
+import {
+  createMdxComponents,
+  getGeistdocsMDXComponents,
+} from "@vercel/geistdocs/mdx";
 import type { MDXComponents } from "mdx/types";
-import { Children, type ComponentProps, isValidElement } from "react";
+import {
+  Children,
+  type ComponentProps,
+  type ComponentType,
+  isValidElement,
+  type ReactNode,
+} from "react";
 import { Check, Cross, Warn } from "@/components/custom/status-icons";
 import { AdapterSlugList } from "./adapter-slug-list";
 import { FeatureSupport } from "./feature-support";
 import { GlobalFeatureMatrix } from "./global-feature-matrix";
 import { PackageInstall } from "./package-install";
 
-// The Geistdocs table scrolls inside a wrapper that keyboard users cannot
-// focus. Move scrolling to a focusable region around it so wide tables can be
-// scrolled with the arrow keys.
-const Table = (props: ComponentProps<"table">) => (
+// Geistdocs tables, including the one TypeTable renders, scroll inside a
+// wrapper that keyboard users cannot focus. Move scrolling to a focusable
+// region around it so wide tables can be scrolled with the arrow keys.
+const ScrollRegion = ({ children }: { children: ReactNode }) => (
   <div
     aria-label="Table"
     className="overflow-x-auto rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-700 [&>div]:overflow-visible"
     role="region"
     tabIndex={0}
   >
-    <GeistdocsTable {...props} />
+    {children}
   </div>
+);
+
+const Table = (props: ComponentProps<"table">) => (
+  <ScrollRegion>
+    <GeistdocsTable {...props} />
+  </ScrollRegion>
+);
+
+// Geistdocs does not export TypeTable on its own, and its MDX component map is
+// untyped, so take it from the map with the props MDX passes it.
+type TypeTableProps = { type: Record<string, unknown> };
+const GeistdocsTypeTable = getGeistdocsMDXComponents()
+  .TypeTable as ComponentType<TypeTableProps>;
+
+const TypeTable = (props: TypeTableProps) => (
+  <ScrollRegion>
+    <GeistdocsTypeTable {...props} />
+  </ScrollRegion>
 );
 
 const NESTED_LIST_TAGS = new Set(["ol", "ul"]);
@@ -58,6 +85,7 @@ export const getMDXComponents = (
     li: ListItem,
     table: Table,
     Table,
+    TypeTable,
 
     Check,
     Cross,
