@@ -106,9 +106,14 @@ export class WebhookAdapter implements Adapter<WebhookThreadId, unknown> {
       return new Response("Invalid JSON", { status: 400 });
     }
 
-    let parsed: Awaited<ReturnType<WebhookAdapterConfig["parse"]>>;
+    // Build every message before dispatching any, so an invalid item doesn't
+    // leave earlier items processed when the platform retries the request.
+    let messages: Message<unknown>[];
     try {
-      parsed = await this.config.parse(payload, { body, request });
+      const parsed = await this.config.parse(payload, { body, request });
+      messages = this.toInboundList(parsed).map((item) =>
+        this.parseMessage(item, payload)
+      );
     } catch (error) {
       this.logger.error("Webhook parse callback failed", {
         error: String(error),
@@ -121,8 +126,7 @@ export class WebhookAdapter implements Adapter<WebhookThreadId, unknown> {
       return new Response("OK", { status: 200 });
     }
 
-    for (const item of this.toInboundList(parsed)) {
-      const message = this.parseMessage(item, payload);
+    for (const message of messages) {
       this.chat.processMessage(this, message.threadId, message, options);
     }
 

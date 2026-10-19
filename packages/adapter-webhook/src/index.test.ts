@@ -348,6 +348,19 @@ describe("handleWebhook", () => {
     expect(chat.processMessage).not.toHaveBeenCalled();
   });
 
+  it("returns 500 without processing any message when one is invalid", async () => {
+    adapter = makeAdapter({
+      parse: () => [
+        { channelId: "chat-1", text: "ok", author: { userId: "user-1" } },
+        { channelId: "", text: "bad", author: { userId: "user-1" } },
+      ],
+    });
+    await adapter.initialize(chat);
+    const response = await adapter.handleWebhook(signedRequest(samplePayload));
+    expect(response.status).toBe(500);
+    expect(chat.processMessage).not.toHaveBeenCalled();
+  });
+
   it("forwards webhook options to processMessage", async () => {
     const waitUntil = vi.fn();
     await adapter.handleWebhook(signedRequest(samplePayload), { waitUntil });

@@ -12,7 +12,7 @@ Documentation: [chat-sdk.dev/adapters/official/webhook](https://chat-sdk.dev/ada
 ## Installation
 
 ```bash
-pnpm add @chat-adapter/webhook
+pnpm add @chat-adapter/webhook @chat-adapter/state-memory
 ```
 
 ## Scaffold with the CLI
@@ -32,6 +32,7 @@ Visit the [adapters directory](https://chat-sdk.dev/adapters) to see other avail
 ```typescript
 import { Chat } from "chat";
 import { createWebhookAdapter } from "@chat-adapter/webhook";
+import { createMemoryState } from "@chat-adapter/state-memory";
 
 interface PlatformEvent {
   chatId: string;
@@ -60,6 +61,7 @@ const bot = new Chat({
       },
     }),
   },
+  state: createMemoryState(),
 });
 
 bot.onNewMention(async (thread, message) => {
