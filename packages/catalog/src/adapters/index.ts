@@ -14,6 +14,7 @@ import { zalo } from "./community/zalo";
 import { discord } from "./official/discord";
 import { gchat } from "./official/gchat";
 import { github } from "./official/github";
+import { gitlab } from "./official/gitlab";
 import { gmail } from "./official/gmail";
 import { instagram } from "./official/instagram";
 import { ioredis } from "./official/ioredis";
@@ -59,6 +60,7 @@ export const ADAPTERS = {
   gmail,
   discord,
   github,
+  gitlab,
   linear,
   notion,
   telegram,

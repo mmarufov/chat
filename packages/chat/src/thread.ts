@@ -38,6 +38,7 @@ import type {
   StreamEvent,
   StreamOptions,
   Thread,
+  TypingOptions,
 } from "./types";
 import { ChatError, NotImplementedError, THREAD_STATE_TTL_MS } from "./types";
 
@@ -123,7 +124,37 @@ function withAiGenerated(
   return options?.aiGenerated ? { ...postable, aiGenerated: true } : postable;
 }
 
-const NEVER_ABORTED_SIGNAL = new AbortController().signal;
+let neverAbortedSignal: AbortSignal | undefined;
+
+/**
+ * Returns a shared signal that never aborts.
+ *
+ * Created lazily because Workflow DevKit evaluates this module inside a VM
+ * that has no `AbortController`. Threads revived there get an inert stand-in.
+ */
+function getNeverAbortedSignal(): AbortSignal {
+  if (!neverAbortedSignal) {
+    neverAbortedSignal =
+      typeof AbortController === "function"
+        ? new AbortController().signal
+        : ({
+            aborted: false,
+            reason: undefined,
+            onabort: null,
+            throwIfAborted() {
+              // Never aborts.
+            },
+            addEventListener() {
+              // Never aborts, so listeners never fire.
+            },
+            removeEventListener() {
+              // Nothing to remove.
+            },
+            dispatchEvent: () => false,
+          } as unknown as AbortSignal);
+  }
+  return neverAbortedSignal;
+}
 
 async function* takeUntilAborted<T>(
   source: AsyncIterable<T>,
@@ -197,7 +228,7 @@ export class ThreadImpl<TState = Record<string, unknown>>
     this.channelId = config.channelId;
     this.isDM = config.isDM ?? false;
     this.channelVisibility = config.channelVisibility ?? "unknown";
-    this.signal = config.signal ?? NEVER_ABORTED_SIGNAL;
+    this.signal = config.signal ?? getNeverAbortedSignal();
     this._isSubscribedContext = config.isSubscribedContext ?? false;
     this._currentMessage = config.currentMessage;
     this._logger = config.logger;
@@ -901,13 +932,18 @@ export class ThreadImpl<TState = Record<string, unknown>>
   }
 
   async startTyping(status?: string): Promise<void> {
-    const initiatorUserId = this._currentMessage?.author.userId;
-    if (initiatorUserId) {
-      await this.adapter.startTyping(this.id, status, { initiatorUserId });
-      this._typingStarted = true;
-      return;
+    const options: TypingOptions = {};
+    if (this._currentMessage?.author.userId) {
+      options.initiatorUserId = this._currentMessage.author.userId;
     }
-    await this.adapter.startTyping(this.id, status);
+    if (this._currentMessage?.id) {
+      options.messageId = this._currentMessage.id;
+    }
+    if (options.initiatorUserId || options.messageId) {
+      await this.adapter.startTyping(this.id, status, options);
+    } else {
+      await this.adapter.startTyping(this.id, status);
+    }
     this._typingStarted = true;
   }
 

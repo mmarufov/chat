@@ -4,6 +4,7 @@ import {
   discord,
   gchat,
   github,
+  gitlab,
   gmail,
   ioredis,
   instagram,
@@ -34,6 +35,7 @@ const ICON_MAP: Record<
   gchat,
   discord,
   github,
+  gitlab,
   gmail,
   instagram,
   web,
@@ -56,7 +58,6 @@ const ICON_MAP: Record<
 const GithubIcon = github;
 
 interface AdapterHeroProps {
-  beta?: boolean;
   community?: boolean;
   logo?: string;
   name: string;

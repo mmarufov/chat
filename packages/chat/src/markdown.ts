@@ -24,7 +24,9 @@ import type {
 import { toString as mdastToString } from "mdast-util-to-string";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
-import remarkStringify from "remark-stringify";
+import remarkStringify, {
+  type Options as MarkdownStringifyOptions,
+} from "remark-stringify";
 import { unified } from "unified";
 import type { CardChild, CardElement, ChartElement } from "./cards";
 import type { AdapterPostableMessage } from "./types";
@@ -300,6 +302,12 @@ export interface StringifyOptions {
   bullet?: "*" | "-" | "+";
   /** Emphasis marker character. Default: `'*'` */
   emphasis?: "*" | "_";
+  /**
+   * Custom serializers keyed by mdast node type. Each replaces the default
+   * serializer for that node type and is responsible for its own escaping.
+   * Set `peek` on a handler that wraps its content in a marker.
+   */
+  handlers?: MarkdownStringifyOptions["handlers"];
 }
 
 /**
@@ -698,6 +706,9 @@ export abstract class BaseFormatConverter implements FormatConverter {
         return tableElementToAscii(child.headers, child.rows);
       case "chart":
         return chartElementToFallbackText(child);
+      case "text_input":
+        // An empty box carries no text of its own.
+        return child.label;
       case "section":
         return child.children
           .map((c) => this.cardChildToFallbackText(c))
