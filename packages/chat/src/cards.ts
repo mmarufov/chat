@@ -46,6 +46,13 @@
 
 import { chartElementToFallbackText, tableElementToAscii } from "./markdown";
 import type { RadioSelectElement, SelectElement } from "./modals";
+// A leaf module, so taking the builder as a value keeps modals.ts out of this
+// chunk — chat/workflow shares it and uses none of the modal builders.
+import {
+  TextInput,
+  type TextInputElement,
+  type TextInputOptions,
+} from "./text-input";
 
 // ============================================================================
 // Card Element Types
@@ -259,7 +266,8 @@ export type CardChild =
   | FieldsElement
   | LinkElement
   | TableElement
-  | ChartElement;
+  | ChartElement
+  | TextInputElement;
 
 /** Union of all element types (including nested children) */
 type AnyCardElement =
@@ -736,6 +744,7 @@ const componentMap = new Map<unknown, string>([
   [Fields, "Fields"],
   [Table, "Table"],
   [Chart, "Chart"],
+  [TextInput, "TextInput"],
 ]);
 
 /**
@@ -904,6 +913,10 @@ export function fromReactElement(element: unknown): AnyCardElement | null {
         chart: props.chart as ChartDefinition,
       });
 
+    case "TextInput":
+      // TextInput() copies each option by name, same as Table above.
+      return TextInput(props as unknown as TextInputOptions);
+
     default:
       return null;
   }
@@ -999,6 +1012,9 @@ export function cardChildToFallbackText(child: CardChild): string | null {
       return tableElementToAscii(child.headers, child.rows);
     case "chart":
       return chartElementToFallbackText(child);
+    case "text_input":
+      // An empty box carries no text of its own.
+      return child.label;
     case "section":
       return child.children
         .map((c) => cardChildToFallbackText(c))
