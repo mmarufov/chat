@@ -122,6 +122,11 @@ async function* streamTurn(
     stream.controller.abort();
   };
   signal.addEventListener("abort", onAbort, { once: true });
+  // A signal aborted while the stream opened or the message was sent never
+  // fires "abort" again, so cancel the turn that was just started now.
+  if (signal.aborted) {
+    onAbort();
+  }
 
   let turnId: string | undefined;
   const ownTurn = (id: string | null) => id === null || id === turnId;

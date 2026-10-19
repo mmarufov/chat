@@ -102,7 +102,7 @@ createClaudeDriver({
 
 Sessions are tagged with `metadata.chat_thread_id`. A stored session is only reused if it belongs to `agentId` and is not archived or terminated.
 
-When the agent's permission policy asks before running a tool, the thread gets an approval card listing the tools and their input. The decision is sent back as a tool confirmation and the rest of the turn streams into the thread. Custom tools that need results from your code are not supported yet.
+When the agent's permission policy asks before running a tool, the thread gets an approval card listing the tools and their input. The decision is sent back as a tool confirmation and the rest of the turn streams into the thread. Each approval is sent once, even if its card is clicked again. Custom tools that need results from your code are not supported yet.
 
 ## Cursor agents
 

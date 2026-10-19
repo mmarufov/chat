@@ -375,7 +375,11 @@ describe("createManagedAgent", () => {
     it("sends the decision and streams the rest of the turn", async () => {
       const { agent, respondToApproval } = setup();
       const fake = createFakeThread({
-        managedAgent: { driver: "fake", sessionId: "sess_1" },
+        managedAgent: {
+          driver: "fake",
+          pendingApproval: "tool_1,tool_2",
+          sessionId: "sess_1",
+        },
       });
       const { editMessage, event } = actionEvent(fake, APPROVE_ACTION_ID);
 
@@ -404,7 +408,11 @@ describe("createManagedAgent", () => {
     it("sends denials", async () => {
       const { agent, respondToApproval } = setup();
       const fake = createFakeThread({
-        managedAgent: { driver: "fake", sessionId: "sess_1" },
+        managedAgent: {
+          driver: "fake",
+          pendingApproval: "tool_1,tool_2",
+          sessionId: "sess_1",
+        },
       });
 
       await agent.handleAction(actionEvent(fake, DENY_ACTION_ID).event);
@@ -412,6 +420,80 @@ describe("createManagedAgent", () => {
       expect(respondToApproval).toHaveBeenCalledWith(
         expect.objectContaining({ approved: false })
       );
+    });
+
+    it("remembers the pending approval with the session", async () => {
+      const { agent } = setup();
+      const fake = createFakeThread();
+
+      await agent.reply(fake.thread, fakeMessage("Hi"));
+
+      expect(fake.state?.managedAgent).toEqual({
+        driver: "fake",
+        pendingApproval: "tool_1,tool_2",
+        sessionId: "sess_new",
+      });
+    });
+
+    it("answers each approval once", async () => {
+      const { agent, respondToApproval } = setup();
+      const fake = createFakeThread({
+        managedAgent: {
+          driver: "fake",
+          pendingApproval: "tool_1,tool_2",
+          sessionId: "sess_1",
+        },
+      });
+
+      await agent.handleAction(actionEvent(fake, APPROVE_ACTION_ID).event);
+      const second = actionEvent(fake, DENY_ACTION_ID);
+      await agent.handleAction(second.event);
+
+      expect(respondToApproval).toHaveBeenCalledTimes(1);
+      expect(second.editMessage).not.toHaveBeenCalled();
+      expect(fake.state?.managedAgent).toEqual({
+        driver: "fake",
+        sessionId: "sess_1",
+      });
+    });
+
+    it("ignores approvals a later turn superseded", async () => {
+      const { agent, respondToApproval } = setup();
+      const fake = createFakeThread({
+        managedAgent: {
+          driver: "fake",
+          pendingApproval: "tool_3",
+          sessionId: "sess_1",
+        },
+      });
+
+      await agent.handleAction(actionEvent(fake, APPROVE_ACTION_ID).event);
+
+      expect(respondToApproval).not.toHaveBeenCalled();
+      expect(fake.posted).toEqual([]);
+    });
+
+    it("clears the pending approval when a new turn starts", async () => {
+      const agent = createManagedAgent({
+        driver: createDriver([
+          [{ messageId: "m1", text: "Sure", type: "message" }, complete],
+        ]),
+        logger: silentLogger,
+      });
+      const fake = createFakeThread({
+        managedAgent: {
+          driver: "fake",
+          pendingApproval: "tool_1",
+          sessionId: "sess_1",
+        },
+      });
+
+      await agent.reply(fake.thread, fakeMessage("Never mind"));
+
+      expect(fake.state?.managedAgent).toEqual({
+        driver: "fake",
+        sessionId: "sess_1",
+      });
     });
 
     it("ignores other actions", async () => {

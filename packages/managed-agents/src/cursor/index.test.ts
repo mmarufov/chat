@@ -219,6 +219,21 @@ describe("createCursorDriver", () => {
     expect(run.wait).not.toHaveBeenCalled();
   });
 
+  it("cancels a run aborted while the message was being sent", async () => {
+    const abort = new AbortController();
+    const run = fakeRun([]);
+    const agent = fakeAgent(run);
+    agent.send.mockImplementationOnce(() => {
+      abort.abort();
+      return Promise.resolve(run);
+    });
+    resume.mockResolvedValue(agent);
+
+    expect(await turn(abort.signal)).toEqual([]);
+    expect(run.cancel).toHaveBeenCalled();
+    expect(run.wait).not.toHaveBeenCalled();
+  });
+
   describe("resumeSession", () => {
     it("checks cloud agents and rejects archived or missing ones", async () => {
       const driver = createCursorDriver(options);

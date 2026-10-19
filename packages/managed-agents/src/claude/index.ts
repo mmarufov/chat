@@ -123,6 +123,11 @@ async function* streamTurn(
     stream.controller.abort();
   };
   signal.addEventListener("abort", onAbort, { once: true });
+  // A signal aborted while the stream opened or the events were sent never
+  // fires "abort" again, so interrupt the turn that was just started now.
+  if (signal.aborted) {
+    onAbort();
+  }
 
   let anchored = anchorId === undefined;
   const previews = new Map<string, Preview>();

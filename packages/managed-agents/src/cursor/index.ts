@@ -95,6 +95,11 @@ export function createCursorDriver(
         run.cancel().catch(() => undefined);
       };
       signal.addEventListener("abort", onAbort, { once: true });
+      // A signal aborted while the agent opened or the message was sent
+      // never fires "abort" again, so cancel the run that was just started.
+      if (signal.aborted) {
+        onAbort();
+      }
 
       try {
         let segment = 0;

@@ -193,5 +193,10 @@ export interface ManagedAgentOptions {
 /** Session reference stored in thread state. */
 export interface StoredSession {
   driver: string;
+  /**
+   * `requestId` of the approval the latest turn ended on. Cleared when a
+   * button is clicked or another turn starts, so each card is answered once.
+   */
+  pendingApproval?: string;
   sessionId: string;
 }

@@ -195,6 +195,14 @@ export function createManagedAgent(options: ManagedAgentOptions): ManagedAgent {
       stored.driver === driver.name &&
       (await driver.resumeSession(stored.sessionId))
     ) {
+      if (stored.pendingApproval) {
+        // A new turn supersedes the pending approval. If the provider is
+        // still waiting on it, the turn asks again with a fresh card.
+        await writeSession(thread, {
+          driver: stored.driver,
+          sessionId: stored.sessionId,
+        });
+      }
       return stored.sessionId;
     }
 
@@ -266,6 +274,7 @@ export function createManagedAgent(options: ManagedAgentOptions): ManagedAgent {
 
   async function runTurn<TState>(
     thread: Thread<TState>,
+    sessionId: string,
     events: AsyncIterable<ManagedAgentEvent>
   ): Promise<void> {
     const { outcome, stream } = toChatStream(events);
@@ -297,11 +306,16 @@ export function createManagedAgent(options: ManagedAgentOptions): ManagedAgent {
     }
     if (outcome.approval) {
       const { requestId, tools } = outcome.approval;
-      await thread.post(
-        driver.respondToApproval
-          ? approvalCard(requestId, tools)
-          : messages.approvalUnsupported
-      );
+      if (!driver.respondToApproval) {
+        await thread.post(messages.approvalUnsupported);
+        return;
+      }
+      await writeSession(thread, {
+        driver: driver.name,
+        pendingApproval: requestId,
+        sessionId,
+      });
+      await thread.post(approvalCard(requestId, tools));
       return;
     }
     if (!outcome.ended) {
@@ -345,6 +359,7 @@ export function createManagedAgent(options: ManagedAgentOptions): ManagedAgent {
         const sessionId = await ensureSession(thread, text);
         await runTurn(
           thread,
+          sessionId,
           driver.runTurn({ sessionId, signal: thread.signal, text })
         );
       });
@@ -369,6 +384,15 @@ export function createManagedAgent(options: ManagedAgentOptions): ManagedAgent {
         await thread.post(messages.sessionEnded);
         return;
       }
+      if (stored.pendingApproval !== requestId) {
+        // Already answered (a second click, or another card for the same
+        // request), or superseded by a later turn. Answering again would
+        // send a duplicate decision to the provider.
+        logger.warn(`${driver.name} ignored an approval that is not pending`);
+        return;
+      }
+      const { sessionId } = stored;
+      await writeSession(thread, { driver: stored.driver, sessionId });
 
       const userName = event.user.fullName || event.user.userName;
       await event.adapter
@@ -387,10 +411,11 @@ export function createManagedAgent(options: ManagedAgentOptions): ManagedAgent {
       await guarded(thread, () =>
         runTurn(
           thread,
+          sessionId,
           respond({
             approved,
             requestId,
-            sessionId: stored.sessionId,
+            sessionId,
             signal: thread.signal,
           })
         )

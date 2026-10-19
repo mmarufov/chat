@@ -455,6 +455,23 @@ describe("createClaudeDriver", () => {
     expect(controller.signal.aborted).toBe(true);
   });
 
+  it("interrupts a turn aborted while the message was being sent", async () => {
+    const abort = new AbortController();
+    const { client, controller, send } = fakeClient({
+      events: [ev.user(), ev.message("msg_1", "Working")],
+    });
+    send.mockImplementationOnce(() => {
+      abort.abort();
+      return Promise.resolve({ data: [ev.user()] });
+    });
+
+    expect(await turn(client, abort.signal)).toEqual([]);
+    expect(send).toHaveBeenLastCalledWith("sesn_123", {
+      events: [{ type: "user.interrupt" }],
+    });
+    expect(controller.signal.aborted).toBe(true);
+  });
+
   describe("resumeSession", () => {
     it("accepts active sessions owned by the agent", async () => {
       const { client } = fakeClient({ events: [] });

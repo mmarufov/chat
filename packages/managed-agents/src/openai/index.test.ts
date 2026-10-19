@@ -430,6 +430,23 @@ describe("createOpenAIDriver", () => {
     expect(controller.signal.aborted).toBe(true);
   });
 
+  it("cancels a turn aborted while the message was being sent", async () => {
+    const abort = new AbortController();
+    const { client, controller, create } = fakeClient({
+      events: [ev.turnCreated(), ev.delta("msg_1", "Working")],
+    });
+    create.mockImplementationOnce(() => {
+      abort.abort();
+      return Promise.resolve();
+    });
+
+    expect(await turn(client, abort.signal)).toEqual([]);
+    expect(create).toHaveBeenLastCalledWith(SESSION, {
+      events: [{ type: "agent.session.input.cancel" }],
+    });
+    expect(controller.signal.aborted).toBe(true);
+  });
+
   describe("resumeSession", () => {
     it("accepts sessions owned by the agent", async () => {
       const { client } = fakeClient({ events: [] });
