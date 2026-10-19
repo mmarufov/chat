@@ -1,7 +1,7 @@
 import { Table as GeistdocsTable } from "@vercel/geistdocs/components/table";
 import { createMdxComponents } from "@vercel/geistdocs/mdx";
 import type { MDXComponents } from "mdx/types";
-import type { ComponentProps } from "react";
+import { Children, type ComponentProps, isValidElement } from "react";
 import { Check, Cross, Warn } from "@/components/custom/status-icons";
 import { AdapterSlugList } from "./adapter-slug-list";
 import { FeatureSupport } from "./feature-support";
@@ -22,17 +22,34 @@ const Table = (props: ComponentProps<"table">) => (
   </div>
 );
 
-// GFM task list items render a bare checkbox. Wrapping the item in a label
-// gives the checkbox its text as an accessible name.
-const ListItem = ({ children, className, ...props }: ComponentProps<"li">) => (
-  <li className={className} {...props}>
-    {className?.includes("task-list-item") ? (
-      <label>{children}</label>
-    ) : (
-      children
-    )}
-  </li>
-);
+const NESTED_LIST_TAGS = new Set(["ol", "ul"]);
+
+const isNestedList = (node: unknown) =>
+  isValidElement(node) &&
+  typeof node.type === "string" &&
+  NESTED_LIST_TAGS.has(node.type);
+
+// GFM task list items render a bare checkbox. Wrapping the item's own text in
+// a label gives the checkbox an accessible name. A nested list stays outside
+// the label so its text and checkboxes are not folded into this item's name.
+const ListItem = ({ children, className, ...props }: ComponentProps<"li">) => {
+  if (!className?.includes("task-list-item")) {
+    return (
+      <li className={className} {...props}>
+        {children}
+      </li>
+    );
+  }
+  const nodes = Children.toArray(children);
+  const nestedListIndex = nodes.findIndex(isNestedList);
+  const labelEnd = nestedListIndex === -1 ? nodes.length : nestedListIndex;
+  return (
+    <li className={className} {...props}>
+      <label>{nodes.slice(0, labelEnd)}</label>
+      {nodes.slice(labelEnd)}
+    </li>
+  );
+};
 
 export const getMDXComponents = (
   components?: MDXComponents
