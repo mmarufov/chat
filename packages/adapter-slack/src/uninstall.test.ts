@@ -13,7 +13,6 @@ import {
   createMockChatInstance,
   createMockLogger,
   createMockState,
-  mockLogger,
 } from "@chat-adapter/tests";
 import { WebClient } from "@slack/web-api";
 import {
@@ -50,6 +49,29 @@ const appUninstalled = {
     },
   ],
   event_id: "Ev0UNINSTALL1",
+  event_time: 1_789_900_000,
+};
+
+const appUninstalledTeam = {
+  token: "xAbCdEfGhIjKlMnOpQrStUvW",
+  team_id: "T00FAKE00AA",
+  api_app_id: "A00FAKEAPP01",
+  event: {
+    type: "app_uninstalled_team",
+    app_id: "A00OTHERAPP1",
+    app_name: "another-app",
+    team_id: "T00FAKE00AA",
+  },
+  type: "event_callback",
+  authorizations: [
+    {
+      team_id: "T00FAKE00AA",
+      user_id: "U00FAKEUSER1",
+      is_bot: false,
+      is_enterprise_install: false,
+    },
+  ],
+  event_id: "Ev0OTHERAPP1",
   event_time: 1_789_900_000,
 };
 
@@ -100,16 +122,17 @@ async function setup(
     botUserId: "U00FAKEBOT01",
   }
 ) {
+  const logger = createMockLogger();
   const adapter = createSlackAdapter({
     signingSecret: secret,
-    logger: mockLogger,
+    logger,
     ...config,
   });
   const bot = new Chat({
     userName: "bot",
     adapters: { slack: adapter },
     state: createMockState(),
-    logger: mockLogger,
+    logger,
   });
   await bot.initialize();
   const uninstalled = vi.fn<(event: UninstalledEvent) => Promise<void>>();
@@ -125,7 +148,7 @@ async function setup(
     return response;
   }
 
-  return { adapter, deliver, uninstalled };
+  return { adapter, deliver, logger, uninstalled };
 }
 
 describe("Slack app_uninstalled", () => {
@@ -160,7 +183,7 @@ describe("Slack app_uninstalled", () => {
 
   it("dispatches when the installation provider no longer returns the installation", async () => {
     const getInstallation = vi.fn().mockResolvedValue(null);
-    const { deliver, uninstalled } = await setup({
+    const { deliver, logger, uninstalled } = await setup({
       installationProvider: { getInstallation },
     });
 
@@ -171,62 +194,109 @@ describe("Slack app_uninstalled", () => {
     );
     // The revoked token is useless, so the event skips token resolution.
     expect(getInstallation).not.toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
     expect(slackApi).not.toHaveBeenCalled();
   });
 
   it.each([
     {
       install: "a workspace",
-      authorization: { team_id: "T00FAKE00AA", is_enterprise_install: false },
+      // Each conflicting top-level field would pick another installation, so
+      // these rows check that authorizations[0] takes precedence over them.
+      envelope: { team_id: "T00FAKE00BB", is_enterprise_install: true },
+      authorizations: [
+        { team_id: "T00FAKE00AA", is_enterprise_install: false },
+      ],
       key: "T00FAKE00AA",
+      tenantId: undefined,
     },
     {
       install: "a workspace in an Enterprise Grid org",
-      authorization: {
-        enterprise_id: "E00FAKEORG01",
-        team_id: "T00FAKE00AA",
-        is_enterprise_install: false,
+      envelope: {
+        enterprise_id: "E00FAKEORG02",
+        team_id: "T00FAKE00BB",
+        is_enterprise_install: true,
       },
+      authorizations: [
+        {
+          enterprise_id: "E00FAKEORG01",
+          team_id: "T00FAKE00AA",
+          is_enterprise_install: false,
+        },
+      ],
       key: "T00FAKE00AA",
+      tenantId: "E00FAKEORG01",
     },
     {
       install: "an org-wide app",
+      envelope: {
+        enterprise_id: "E00FAKEORG02",
+        team_id: "T00FAKE00BB",
+        is_enterprise_install: false,
+      },
       // Synthetic authorization shape, unverified against live uninstall traffic.
-      authorization: {
-        enterprise_id: "E00FAKEORG01",
-        team_id: null,
+      authorizations: [
+        {
+          enterprise_id: "E00FAKEORG01",
+          team_id: null,
+          is_enterprise_install: true,
+        },
+      ],
+      key: "E00FAKEORG01",
+      tenantId: "E00FAKEORG01",
+    },
+    {
+      install: "a workspace named only by top-level fields",
+      envelope: { team_id: "T00FAKE00BB" },
+      authorizations: undefined,
+      key: "T00FAKE00BB",
+      tenantId: undefined,
+    },
+    {
+      install: "an org-wide app named only by top-level fields",
+      envelope: {
+        enterprise_id: "E00FAKEORG02",
+        team_id: "T00FAKE00BB",
         is_enterprise_install: true,
       },
-      key: "E00FAKEORG01",
+      authorizations: undefined,
+      key: "E00FAKEORG02",
+      tenantId: "E00FAKEORG02",
     },
-  ])("lets the handler delete only $install's stored installation", async ({
-    authorization,
+  ])("lets the handler delete only the stored installation for $install", async ({
+    envelope,
+    authorizations,
     key,
+    tenantId,
   }) => {
     const { adapter, deliver, uninstalled } = await setup({});
-    const keys = ["T00FAKE00AA", "T00FAKE00BB", "E00FAKEORG01"];
+    const keys = ["T00FAKE00AA", "T00FAKE00BB", "E00FAKEORG01", "E00FAKEORG02"];
     for (const teamId of keys) {
       await adapter.setInstallation(teamId, { botToken: `xoxb-${teamId}` });
     }
     uninstalled.mockImplementation(async (event) => {
+      // Yield a macrotask first, so the deletion is only observed if the
+      // handler's task was handed to waitUntil.
+      await new Promise((resolve) => setTimeout(resolve));
       await adapter.deleteInstallation(event.conversationId);
     });
 
     await deliver(
       signedRequest({
         ...appUninstalled,
-        // The top-level team_id still names a workspace, so this checks that
-        // the installation identity comes from authorizations.
-        ...(authorization.enterprise_id
-          ? { enterprise_id: authorization.enterprise_id }
-          : {}),
-        authorizations: [{ ...authorization, user_id: "U00FAKEUSER1" }],
+        ...envelope,
+        authorizations: authorizations?.map((authorization) => ({
+          ...authorization,
+          user_id: "U00FAKEUSER1",
+        })),
       })
     );
 
-    expect(uninstalled).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ conversationId: key })
-    );
+    expect(uninstalled).toHaveBeenCalledOnce();
+    const [event] = uninstalled.mock.calls[0] ?? [];
+    expect(event?.conversationId).toBe(key);
+    expect(event?.tenantId).toBe(tenantId);
+    expect(event && "tenantId" in event).toBe(tenantId !== undefined);
     for (const teamId of keys) {
       const stored = await adapter.getInstallation(teamId);
       expect(stored === null).toBe(teamId === key);
@@ -259,12 +329,35 @@ describe("Slack app_uninstalled", () => {
     expect(slackApi).not.toHaveBeenCalled();
   });
 
-  describe.each([
-    { mode: "single-workspace", multiWorkspace: false },
-    { mode: "multi-workspace", multiWorkspace: true },
-  ])("tokens_revoked in $mode mode", ({ multiWorkspace }) => {
+  // app_uninstalled_team reports another app's removal to org-wide admin apps
+  // (https://docs.slack.dev/reference/events/app_uninstalled_team), so it
+  // must neither dispatch nor skip token resolution like app_uninstalled.
+  it("resolves the installation for app_uninstalled_team without dispatching it", async () => {
+    const getInstallation = vi.fn().mockResolvedValue(null);
+    const { deliver, logger, uninstalled } = await setup({
+      installationProvider: { getInstallation },
+    });
+
+    const response = await deliver(signedRequest(appUninstalledTeam));
+
+    expect(response.status).toBe(200);
+    expect(getInstallation).toHaveBeenCalledExactlyOnceWith(
+      "T00FAKE00AA",
+      false
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Could not resolve token for installation",
+      { installationId: "T00FAKE00AA", isEnterpriseInstall: false }
+    );
+    expect(uninstalled).not.toHaveBeenCalled();
+    expect(slackApi).not.toHaveBeenCalled();
+  });
+
+  // Single-workspace mode never resolves installations, so only
+  // multi-workspace mode can show that tokens_revoked skips the lookup.
+  describe("tokens_revoked in multi-workspace mode", () => {
     async function setupWithInstallation() {
-      const context = await setup(multiWorkspace ? {} : undefined);
+      const context = await setup({});
       const installation = { botToken: "xoxb-stored-token" };
       await context.adapter.setInstallation(
         appUninstalled.team_id,
@@ -278,8 +371,14 @@ describe("Slack app_uninstalled", () => {
       ["before", true],
       ["after", false],
     ])("dispatches once when tokens_revoked arrives %s app_uninstalled", async (_, revokedFirst) => {
-      const { adapter, deliver, uninstalled, installation, getInstallation } =
-        await setupWithInstallation();
+      const {
+        adapter,
+        deliver,
+        logger,
+        uninstalled,
+        installation,
+        getInstallation,
+      } = await setupWithInstallation();
       uninstalled.mockImplementation(async (event) => {
         await adapter.deleteInstallation(event.conversationId);
       });
@@ -296,18 +395,17 @@ describe("Slack app_uninstalled", () => {
 
         if (payload.event.type === "tokens_revoked") {
           expect(uninstalled).toHaveBeenCalledTimes(revokedFirst ? 0 : 1);
-          if (multiWorkspace) {
-            expect(getInstallation).toHaveBeenCalledExactlyOnceWith(
-              appUninstalled.team_id
-            );
-            await expect(
-              getInstallation.mock.results[0]?.value
-            ).resolves.toEqual(revokedFirst ? installation : null);
-          } else {
-            expect(getInstallation).not.toHaveBeenCalled();
-          }
+          await expect(
+            adapter.getInstallation(appUninstalled.team_id)
+          ).resolves.toEqual(revokedFirst ? installation : null);
+          getInstallation.mockClear();
         }
       }
+
+      // Neither event looks up the installation, so the one deleted by the
+      // handler doesn't produce missing-installation warnings.
+      expect(getInstallation).not.toHaveBeenCalled();
+      expect(logger.warn).not.toHaveBeenCalled();
 
       expect(uninstalled).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({ conversationId: appUninstalled.team_id })
@@ -332,16 +430,7 @@ describe("Slack app_uninstalled", () => {
 
       expect(response.status).toBe(200);
       expect(uninstalled).not.toHaveBeenCalled();
-      if (multiWorkspace) {
-        expect(getInstallation).toHaveBeenCalledExactlyOnceWith(
-          appUninstalled.team_id
-        );
-        await expect(getInstallation.mock.results[0]?.value).resolves.toEqual(
-          installation
-        );
-      } else {
-        expect(getInstallation).not.toHaveBeenCalled();
-      }
+      expect(getInstallation).not.toHaveBeenCalled();
       await expect(
         adapter.getInstallation(appUninstalled.team_id)
       ).resolves.toEqual(installation);
@@ -426,7 +515,7 @@ describe("Slack app_uninstalled", () => {
   });
 
   it("ignores a delivery without an installation id", async () => {
-    const { deliver, uninstalled } = await setup();
+    const { deliver, logger, uninstalled } = await setup();
 
     const response = await deliver(
       signedRequest({
@@ -438,6 +527,9 @@ describe("Slack app_uninstalled", () => {
 
     expect(response.status).toBe(200);
     expect(uninstalled).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+      "Ignoring app_uninstalled: missing installation id"
+    );
     expect(slackApi).not.toHaveBeenCalled();
   });
 
@@ -448,7 +540,7 @@ describe("Slack app_uninstalled", () => {
       botToken: "xoxb-test-token",
       botUserId: "U00FAKEBOT01",
       signingSecret: secret,
-      logger: mockLogger,
+      logger: createMockLogger(),
     });
     await adapter.initialize(legacy as ChatInstance);
 

@@ -313,7 +313,9 @@ This dispatches bot joins only. Personal installs, ordinary member additions, an
 `bot.onUninstalled` fires for `remove` and `remove-upgrade`. Both cover personal,
 group chat, and team installs and receive the `action`, the activity `id`, the
 platform `conversationId`, the actor `userId`, `tenantId`, `locale`, and the raw
-activity. These handlers are currently emitted only by Teams.
+activity. Only Teams emits `onInstalled`. Slack also emits `onUninstalled`, as
+described in [Slack uninstalls](/adapters/official/slack#uninstalls), so check
+`event.adapter.name` in handlers that read Teams fields from `event.raw`.
 
 `event.channelId` is the Chat SDK destination for the installation: the personal
 chat, the group chat, or the channel selected during a team install. It encodes

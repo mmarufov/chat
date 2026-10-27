@@ -541,7 +541,8 @@ team installs, use `event.raw.channelData.team.id` as the installation scope;
 the install and removal events can carry different `conversationId` values.
 Include the bot ID and tenant ID in your persistence key. For Slack,
 `conversationId` is the installation key: the `team_id`, or the `enterprise_id`
-for org-wide installs.
+for org-wide installs. `tenantId` is the Enterprise Grid `enterprise_id` when
+the event carries one.
 
 `action` is `add`, `add-upgrade`, `remove`, or `remove-upgrade`. The upgrade
 variants mean the app manifest added or removed the bot, so persist and clean

@@ -192,7 +192,7 @@ await slackAdapter.withBotToken(
 await slackAdapter.deleteInstallation(teamId);
 ```
 
-When a workspace uninstalls the app, Slack sends `app_uninstalled` and the adapter calls `bot.onUninstalled`. Add `app_uninstalled` to your manifest's `bot_events` to receive it. `event.conversationId` is the installation key (the `team_id`, or `enterprise_id` for org-wide installs), and the adapter doesn't delete the installation itself:
+When a workspace uninstalls the app, Slack sends `app_uninstalled` and the adapter calls `bot.onUninstalled`. Add `app_uninstalled` to your manifest's `bot_events` to receive it. `event.conversationId` is the installation key (the `team_id`, or `enterprise_id` for org-wide installs), and `event.tenantId` is the Enterprise Grid `enterprise_id` when there is one. The adapter doesn't delete the installation itself:
 
 ```typescript
 bot.onUninstalled(async (event) => {
@@ -201,7 +201,7 @@ bot.onUninstalled(async (event) => {
 });
 ```
 
-`tokens_revoked` doesn't call `onUninstalled`, because Slack also sends it for revocations that leave the app installed. See [Uninstalls](https://chat-sdk.dev/adapters/official/slack#uninstalls).
+If you read installations through `installationProvider`, also delete the record from your own store. `tokens_revoked` doesn't call `onUninstalled`, because Slack also sends it for revocations that leave the app installed. See [Uninstalls](https://chat-sdk.dev/adapters/official/slack#uninstalls).
 
 #### Token encryption
 
@@ -370,6 +370,7 @@ settings:
       - member_joined_channel
       - assistant_thread_started
       - assistant_thread_context_changed
+      - app_uninstalled
   interactivity:
     is_enabled: true
     request_url: https://your-domain.com/api/webhooks/slack

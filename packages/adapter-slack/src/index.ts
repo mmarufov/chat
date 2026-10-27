@@ -309,6 +309,14 @@ const MAYBE_APPLIED_ERRORS = new Set([
   "request_timeout",
   "service_unavailable",
 ]);
+/**
+ * Events Slack sends after revoking the app's tokens. The installation may
+ * already be gone, and its token is useless, so they skip token resolution.
+ */
+const TOKEN_LIFECYCLE_EVENT_TYPES = new Set([
+  "app_uninstalled",
+  "tokens_revoked",
+]);
 /** Fenced code block delimiter: up to three spaces, then 3+ backticks or tildes. */
 const FENCE_LINE_PATTERN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const TABLE_ROW_PATTERN = /^\|.*\|$/;
@@ -1740,7 +1748,7 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
    * Returns:
    * - the resolved context to run the event under,
    * - `"not-applicable"` when no resolution is needed (single-workspace
-   *   mode, `app_uninstalled`, or the payload carries no installation ID) —
+   *   mode, a token lifecycle event, or the payload carries no installation ID) —
    *   process without a request context,
    * - `"unresolved"` when an installation ID was present but no
    *   installation was found — drop the event.
@@ -1764,9 +1772,7 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
     if (this.defaultBotTokenProvider || payload.type !== "event_callback") {
       return "not-applicable";
     }
-    // Slack revokes the app's tokens before it sends app_uninstalled, and the
-    // installation may already be gone, so dispatch it without a token.
-    if (payload.event?.type === "app_uninstalled") {
+    if (TOKEN_LIFECYCLE_EVENT_TYPES.has(payload.event?.type ?? "")) {
       return "not-applicable";
     }
 
@@ -3856,6 +3862,9 @@ export class SlackAdapter implements Adapter<SlackThreadId, unknown> {
         conversationId: installation.installationId,
         id: payload.event_id ?? "",
         raw: payload,
+        ...(installation.enterpriseId
+          ? { tenantId: installation.enterpriseId }
+          : {}),
       },
       options
     );
