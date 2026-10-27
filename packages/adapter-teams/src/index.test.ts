@@ -12,14 +12,30 @@ import {
   type AdapterPostableMessage,
   type ChatInstance,
   ConsoleLogger,
+  DEFAULT_MAX_INCOMING_PARSE_LENGTH,
   getEmoji,
+  paragraph,
+  root,
+  text,
 } from "chat";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from "vitest";
 import type { TeamsActivityAttachment } from "./attachments";
 import { createTeamsAdapter, TeamsAdapter, type TeamsThreadId } from "./index";
+import { TeamsFormatConverter } from "./markdown";
 
 const WHITESPACE_START_PATTERN = /^\s/;
 const WHITESPACE_END_PATTERN = /\s$/;
+const MARKDOWN_BODY = "**bold** with [a link](https://example.com) and `code`";
+const MARKDOWN_PLAIN_TEXT = "bold with a link and code";
+const OVER_LIMIT_BODY = `**bold** ${"a".repeat(DEFAULT_MAX_INCOMING_PARSE_LENGTH)}`;
 
 class MockTeamsError extends Error {
   statusCode?: number;
@@ -1071,6 +1087,65 @@ describe("TeamsAdapter", () => {
       const message = adapter.parseMessage(activity);
       expect(message.text).not.toMatch(WHITESPACE_START_PATTERN);
       expect(message.text).not.toMatch(WHITESPACE_END_PATTERN);
+    });
+  });
+
+  // ==========================================================================
+  // Inbound markdown parsing (via parseMessage)
+  // ==========================================================================
+
+  describe("inbound markdown parsing (via parseMessage)", () => {
+    let toAstSpy: MockInstance<TeamsFormatConverter["toAst"]>;
+
+    beforeEach(() => {
+      toAstSpy = vi.spyOn(TeamsFormatConverter.prototype, "toAst");
+    });
+
+    afterEach(() => {
+      toAstSpy.mockRestore();
+    });
+
+    function parse(body: string) {
+      const adapter = createTeamsAdapter({
+        appId: "test-app",
+        appPassword: "test",
+        logger,
+      });
+      return adapter.parseMessage({
+        type: "message",
+        id: "msg-300",
+        text: body,
+        from: { id: "user-1", name: "Alice" },
+        conversation: { id: "19:abc@thread.tacv2" },
+        serviceUrl: TEST_SERVICE_URL,
+      });
+    }
+
+    it("should parse markdown once into text and formatted", () => {
+      const message = parse(MARKDOWN_BODY);
+
+      expect(message.text).toBe(MARKDOWN_PLAIN_TEXT);
+      expect(message.formatted).toMatchObject({
+        children: [
+          {
+            type: "paragraph",
+            children: expect.arrayContaining([
+              expect.objectContaining({ type: "strong" }),
+            ]),
+          },
+        ],
+      });
+      expect(toAstSpy).toHaveBeenCalledOnce();
+    });
+
+    it("should keep an over-limit message verbatim without parsing", () => {
+      const message = parse(OVER_LIMIT_BODY);
+
+      expect(message.text).toBe(OVER_LIMIT_BODY);
+      expect(message.formatted).toEqual(
+        root([paragraph([text(OVER_LIMIT_BODY)])])
+      );
+      expect(toAstSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -2388,6 +2463,43 @@ describe("TeamsAdapter", () => {
       expect(chat.processMessage).toHaveBeenCalledTimes(2);
       const message = vi.mocked(chat.processMessage).mock.calls[1]?.[2];
       expect(message?.author.email).toBeUndefined();
+    });
+
+    it("marks a mention of this bot when the entity ID casing differs", async () => {
+      const { adapter, chat, getMemberById } = await setup(
+        new Error("Forbidden")
+      );
+
+      await adapter.handleIncoming(
+        {
+          ...activity(),
+          text: "<at>Bot</at> hello",
+          entities: [{ type: "mention", mentioned: { id: "28:TEST" } }],
+        },
+        getMemberById
+      );
+
+      const message = vi.mocked(chat.processMessage).mock.calls[0]?.[2];
+      expect(message?.isMention).toBe(true);
+    });
+
+    it("marks a mention of another bot whose name starts with ours as not a mention", async () => {
+      const { adapter, chat, getMemberById } = await setup(
+        new Error("Forbidden")
+      );
+
+      await adapter.handleIncoming(
+        {
+          ...activity(),
+          text: "<at>bot Dev</at> hello",
+          entities: [{ type: "mention", mentioned: { id: "28:other-app" } }],
+        },
+        getMemberById
+      );
+
+      const message = vi.mocked(chat.processMessage).mock.calls[0]?.[2];
+      expect(message?.text).toBe("@bot Dev hello");
+      expect(message?.isMention).toBe(false);
     });
 
     it("hydrates email on the DM path and completes processing", async () => {

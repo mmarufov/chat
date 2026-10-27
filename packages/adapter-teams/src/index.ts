@@ -601,13 +601,13 @@ export class TeamsAdapter implements Adapter<TeamsThreadId, unknown> {
     const isMention = entities.some(
       (e: { type?: string; mentioned?: { id?: string } }) =>
         e.type === "mention" &&
-        e.mentioned?.id &&
-        (e.mentioned.id === this.app.id ||
-          e.mentioned.id.endsWith(`:${this.app.id}`))
+        !!e.mentioned?.id &&
+        this.isBotAccountId(e.mentioned.id)
     );
-    if (isMention) {
-      message.isMention = true;
-    }
+    // Set false too: Chat only guesses from `@userName` in the text when this
+    // is unset, and that guess matches mentions of other bots whose display
+    // name starts with ours ("@Bot Dev" for a bot named "Bot").
+    message.isMention = isMention;
 
     // For DMs, capture ctx.stream and await processing so the stream stays
     // alive for native streaming via emit(). Group chats use fire-and-forget.
@@ -1014,8 +1014,7 @@ export class TeamsAdapter implements Adapter<TeamsThreadId, unknown> {
     return new Message({
       id: activity.id || "",
       threadId,
-      text: this.formatConverter.extractPlainText(normalizedText),
-      formatted: this.formatConverter.toAst(normalizedText),
+      ...this.formatConverter.parseIncoming(normalizedText),
       raw: activity,
       author: this.authorFromActivity(activity),
       metadata: {

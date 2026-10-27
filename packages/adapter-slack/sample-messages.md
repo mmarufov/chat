@@ -133,3 +133,37 @@ The next two payloads have the shape of Slack's documented `app_uninstalled` and
   body: '{"token":"xAbCdEfGhIjKlMnOpQrStUvW","team_id":"T00FAKE00AA","api_app_id":"A00FAKEAPP01","event":{"type":"tokens_revoked","tokens":{"oauth":["U00FAKEUSER1"],"bot":["U00FAKEBOT01"]}},"type":"event_callback","event_id":"Ev0REVOKED01","event_time":1789900000}'
 }
 ```
+
+## Composer lists
+
+This message event comes from the reproduction in [issue #956](https://github.com/vercel/chat/issues/956), rather than a captured webhook. The `rich_text_list` elements preserve nesting that the bullet characters in `text` cannot express to a Markdown parser. The adapter produces a paragraph, a list with a nested item, and a final paragraph.
+
+```json
+{
+  "type": "message",
+  "channel": "D0123456789",
+  "channel_type": "im",
+  "user": "U0123456789",
+  "username": "jane",
+  "ts": "1726600000.000100",
+  "text": "Steps:\n• one\n• two\n    ◦ nested\n<!here> and <!subteam^S0123456789|@devs>",
+  "blocks": [{
+    "type": "rich_text",
+    "elements": [
+      { "type": "rich_text_section", "elements": [{ "type": "text", "text": "Steps:" }] },
+      { "type": "rich_text_list", "style": "bullet", "indent": 0, "elements": [
+        { "type": "rich_text_section", "elements": [{ "type": "text", "text": "one" }] },
+        { "type": "rich_text_section", "elements": [{ "type": "text", "text": "two" }] }
+      ] },
+      { "type": "rich_text_list", "style": "bullet", "indent": 1, "elements": [
+        { "type": "rich_text_section", "elements": [{ "type": "text", "text": "nested" }] }
+      ] },
+      { "type": "rich_text_section", "elements": [
+        { "type": "broadcast", "range": "here" },
+        { "type": "text", "text": " and " },
+        { "type": "usergroup", "usergroup_id": "S0123456789" }
+      ] }
+    ]
+  }]
+}
+```
